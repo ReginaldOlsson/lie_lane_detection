@@ -1,0 +1,40 @@
+lane_detector_node:
+  ros__parameters:
+    # BEV extents — extend length to capture far merge region
+    bev_width_m: 12.0
+    bev_length_m: 40.0
+    bev_resolution_m_per_px: 0.05
+
+    # IPM ROI trapezoid in image pixels (x0,y0, x1,y1, x2,y2, x3,y3)
+    # Tune per camera mount: bottom-wide trapezoid over lane convergence zone
+    ipm_src_points: [200.0, 700.0, 600.0, 700.0, 700.0, 400.0, 100.0, 400.0]
+    # Destination corners in meters (x,y): near-left, near-right, far-right, far-left
+    ipm_dst_points: [-6.0, 0.0, 6.0, 0.0, 6.0, 40.0, -6.0, 40.0]
+
+    image_topic: "/camera/image_raw"
+    camera_info_topic: "/camera/camera_info"
+    frame_id: "base_link"
+
+    use_steerable_filter: true
+    connect_dashed_edges: true
+    edge_low_threshold: 30.0
+    edge_high_threshold: 90.0
+    edge_border_margin_ratio: 0.07
+
+    top_k_peaks: 8
+    max_lane_hypotheses: 8
+    use_iterative_peeling: true
+    vote_threshold_px: 4.0
+    inlier_threshold_px: 5.0
+    min_inlier_ratio: 0.42
+    min_lane_separation_px: 28.0
+    peel_edge_margin_px: 10.0
+    ransac_iterations: 120
+    min_inliers: 15
+    merge_converged_threshold_m: 1.5
+
+    # Lie-Hough kappa/sigma in pixel-scaled template units
+    kappa_min: -0.2
+    kappa_max: 0.2
+    sigma_min: -0.15
+    sigma_max: 0.15
