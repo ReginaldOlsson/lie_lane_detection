@@ -88,7 +88,10 @@ std::vector<EdgePoint> subsampleEdges(const std::vector<EdgePoint> & edges, size
   return sampled;
 }
 
-bool passesQualityGate(const LaneHypothesis & lane, const PipelineParams & params)
+bool passesQualityGate(
+  const LaneHypothesis & lane,
+  const PipelineParams & params,
+  double image_height)
 {
   if (lane.inlier_ratio < params.min_inlier_ratio) {
     return false;
@@ -99,6 +102,21 @@ bool passesQualityGate(const LaneHypothesis & lane, const PipelineParams & param
   if (isBorderLane(lane, params)) {
     return false;
   }
+
+  // Reject spurious composite curves (Lewis Fig. 3): inliers must span enough
+  // of the forward (y) axis to be a real lane marking, not a local arc fit.
+  if (!lane.supporting_edges.empty() && image_height > 1.0) {
+    double y_min = lane.supporting_edges.front().y;
+    double y_max = lane.supporting_edges.front().y;
+    for (const auto & e : lane.supporting_edges) {
+      y_min = std::min(y_min, e.y);
+      y_max = std::max(y_max, e.y);
+    }
+    const double coverage = (y_max - y_min) / image_height;
+    if (coverage < params.min_inlier_y_coverage) {
+      return false;
+    }
+  }
   return true;
 }
 
@@ -107,7 +125,8 @@ LaneHypothesis pickBestSeed(
   const std::vector<EdgePoint> & edges,
   ManifoldRansac & ransac,
   const std::vector<LaneHypothesis> & accepted,
-  const PipelineParams & params)
+  const PipelineParams & params,
+  double image_height)
 {
   std::vector<LaneHypothesis> fitted(seeds.size());
   tbb::parallel_for(
@@ -121,7 +140,7 @@ LaneHypothesis pickBestSeed(
   LaneHypothesis best;
   double best_metric = -1.0;
   for (const auto & hyp : fitted) {
-    if (!passesQualityGate(hyp, params)) {
+    if (!passesQualityGate(hyp, params, image_height)) {
       continue;
     }
     if (isTooCloseToExisting(hyp, accepted, params.min_lane_separation_px)) {
@@ -262,8 +281,8 @@ BevDetectionResult detectLanesInBev(const cv::Mat & bev_bgr, PipelineParams para
         break;
       }
 
-      LaneHypothesis best = pickBestSeed(seeds, remaining, ransac, refined, params);
-      if (best.score <= 0.0 || !passesQualityGate(best, params)) {
+      LaneHypothesis best = pickBestSeed(seeds, remaining, ransac, refined, params, bev_bgr.rows);
+      if (best.score <= 0.0 || !passesQualityGate(best, params, bev_bgr.rows)) {
         break;
       }
 
@@ -287,11 +306,15 @@ BevDetectionResult detectLanesInBev(const cv::Mat & bev_bgr, PipelineParams para
   result.lanes.erase(
     std::remove_if(
       result.lanes.begin(), result.lanes.end(),
-      [&params](const LaneHypothesis & lane) {
-        return lane.xi[0] < params.se2_vx_min ||
-               lane.xi[0] > params.se2_vx_max ||
-               lane.inlier_ratio < params.min_inlier_ratio ||
-               isBorderLane(lane, params);
+      [&params, &bev_bgr](const LaneHypothesis & lane) {
+        if (lane.xi[0] < params.se2_vx_min ||
+            lane.xi[0] > params.se2_vx_max ||
+            lane.inlier_ratio < params.min_inlier_ratio ||
+            isBorderLane(lane, params))
+        {
+          return true;
+        }
+        return !passesQualityGate(lane, params, static_cast<double>(bev_bgr.rows));
       }),
     result.lanes.end());
 

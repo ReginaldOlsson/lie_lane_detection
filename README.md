@@ -4,6 +4,10 @@ ROS 2 (Jazzy) C++ package for **multi-lane road boundary detection** in bird's-e
 
 Detection runs in BEV pixel space. Curved roads, Y-merges, and lane splits are modeled with curvature (`kappa`) and merge/diverge shear (`sigma`) on top of an SE(2) pose.
 
+For deeper mathematical context, graded-Lie analogies, and a refinement roadmap (including notes tied to [this lecture on graded Lie algebras and curve families](https://www.youtube.com/watch?v=TlAnOMjybJg&t=654s)), see **[docs/MATHEMATICS.md](docs/MATHEMATICS.md)**.
+
+Improvements inspired by Lewis et al. (IVCNZ 2016) parabolic Hough + RHT for power lines are documented in **[docs/LEWIS_HOUGH_CURVES.md](docs/LEWIS_HOUGH_CURVES.md)**.
+
 ---
 
 ## Pipeline overview
@@ -66,9 +70,11 @@ Tune `ipm_src_points` per camera mount. Offline testing on TuSimple/CULane frame
 ### 2. Edge extraction
 
 - Grayscale + **CLAHE** contrast normalization
+- Optional **anisotropic Gaussian blur** (Lewis et al.) — stronger smoothing along lateral axis in BEV
 - **Steerable filter bank** (5 orientations) or plain Sobel
 - Optional morphological **close** to bridge dashed lane gaps
 - **Hysteresis** thresholding
+- Optional **morphological thinning** (skeleton) for one-pixel-wide edges
 - Edge points collected via `cv::findNonZero` (TBB-parallelized)
 
 ### 3. Lie-Hough voting (two stages)

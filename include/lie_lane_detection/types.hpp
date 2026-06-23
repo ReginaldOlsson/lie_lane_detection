@@ -51,6 +51,8 @@ struct PipelineParams
   // Edge extraction
   bool use_steerable_filter{true};
   bool connect_dashed_edges{true};
+  bool edge_anisotropic_blur{true};
+  bool edge_thin{true};
   double edge_low_threshold{30.0};
   double edge_high_threshold{90.0};
   double edge_border_margin_ratio{0.07};
@@ -81,6 +83,8 @@ struct PipelineParams
   bool use_iterative_peeling{true};
   double peel_edge_margin_px{10.0};
   double min_lane_separation_px{28.0};
+  double hough_hypothesis_merge_ratio{0.85};
+  double min_inlier_y_coverage{0.35};
 
   // RANSAC
   int ransac_iterations{120};

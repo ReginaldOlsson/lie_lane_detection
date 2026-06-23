@@ -247,6 +247,9 @@ std::vector<LaneHypothesis> LieHoughVoter::vote(
 
         int best_ik = 0;
         int best_is = 0;
+        std::vector<std::pair<XiVector, double>> vote_bins;
+        vote_bins.reserve(
+          static_cast<size_t>(params_.kappa_bins * params_.sigma_bins));
         for (int ik = 0; ik < params_.kappa_bins; ++ik) {
           for (int is = 0; is < params_.sigma_bins; ++is) {
             XiVector xi = binToXi(se2_peak.ix, se2_peak.iy, se2_peak.io, ik, is);
@@ -265,12 +268,29 @@ std::vector<LaneHypothesis> LieHoughVoter::vote(
                 votes += edge.magnitude;
               }
             }
+            vote_bins.emplace_back(xi, votes);
             if (votes > best_votes) {
               best_votes = votes;
               best_xi = xi;
               best_ik = ik;
               best_is = is;
             }
+          }
+        }
+
+        // RHT-style: average similar hypotheses (Lewis et al. Algorithm 2).
+        if (best_votes > 0.0) {
+          const double merge_thresh = best_votes * params_.hough_hypothesis_merge_ratio;
+          XiVector xi_avg = XiVector::Zero();
+          double weight_sum = 0.0;
+          for (const auto & [xi, votes] : vote_bins) {
+            if (votes >= merge_thresh) {
+              xi_avg += votes * xi;
+              weight_sum += votes;
+            }
+          }
+          if (weight_sum > 0.0) {
+            best_xi = xi_avg / weight_sum;
           }
         }
 

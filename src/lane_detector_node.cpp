@@ -26,6 +26,9 @@ PipelineParams loadParams(rclcpp::Node & node)
   p.ipm_dst_points = node.declare_parameter<std::vector<double>>(
     "ipm_dst_points", {-6.0, 0.0, 6.0, 0.0, 6.0, 40.0, -6.0, 40.0});
   p.use_steerable_filter = node.declare_parameter<bool>("use_steerable_filter", true);
+  p.connect_dashed_edges = node.declare_parameter<bool>("connect_dashed_edges", true);
+  p.edge_anisotropic_blur = node.declare_parameter<bool>("edge_anisotropic_blur", true);
+  p.edge_thin = node.declare_parameter<bool>("edge_thin", true);
   p.edge_low_threshold = node.declare_parameter<double>("edge_low_threshold", 30.0);
   p.edge_high_threshold = node.declare_parameter<double>("edge_high_threshold", 90.0);
   p.top_k_peaks = node.declare_parameter<int>("top_k_peaks", 6);
@@ -38,6 +41,9 @@ PipelineParams loadParams(rclcpp::Node & node)
   p.kappa_max = node.declare_parameter<double>("kappa_max", 0.2);
   p.sigma_min = node.declare_parameter<double>("sigma_min", -0.15);
   p.sigma_max = node.declare_parameter<double>("sigma_max", 0.15);
+  p.hough_hypothesis_merge_ratio =
+    node.declare_parameter<double>("hough_hypothesis_merge_ratio", 0.85);
+  p.min_inlier_y_coverage = node.declare_parameter<double>("min_inlier_y_coverage", 0.35);
   return p;
 }
 

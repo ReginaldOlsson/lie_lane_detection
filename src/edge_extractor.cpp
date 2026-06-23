@@ -14,7 +14,7 @@ EdgeExtractor::EdgeExtractor(const PipelineParams & params)
 {
 }
 
-cv::Mat EdgeExtractor::applySteerableBank(const cv::Mat & gray) const
+cv::Mat EdgeExtractor::applySteerableBank(const cv::Mat & gray, cv::Mat * orientation) const
 {
   cv::Mat gx;
   cv::Mat gy;
@@ -37,7 +37,27 @@ cv::Mat EdgeExtractor::applySteerableBank(const cv::Mat & gray) const
   for (int o = 1; o < kNumOrientations; ++o) {
     cv::max(response, oriented[static_cast<size_t>(o)], response);
   }
+
+  if (orientation) {
+    cv::cartToPolar(gx, gy, *orientation, *orientation, true);
+  }
   return response;
+}
+
+void EdgeExtractor::thinBinaryEdges(cv::Mat & edges) const
+{
+  cv::Mat skel = cv::Mat::zeros(edges.size(), CV_8U);
+  cv::Mat img = edges.clone();
+  const cv::Mat element = cv::getStructuringElement(cv::MORPH_CROSS, cv::Size(3, 3));
+  cv::Mat temp;
+  cv::Mat eroded;
+  while (cv::countNonZero(img) > 0) {
+    cv::erode(img, eroded, element);
+    cv::subtract(img, eroded, temp);
+    cv::bitwise_or(skel, temp, skel);
+    img = eroded;
+  }
+  edges = skel;
 }
 
 void EdgeExtractor::hysteresisThreshold(cv::Mat & magnitude, cv::Mat & /*orientation*/) const
@@ -78,10 +98,16 @@ std::vector<EdgePoint> EdgeExtractor::extract(const cv::Mat & bev_bgr, cv::Mat *
   cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(2.0, cv::Size(8, 8));
   clahe->apply(gray, gray);
 
+  // Lewis et al. (IVCNZ 2016): anisotropic blur suppresses clutter perpendicular to curves.
+  // BEV lanes are ~vertical → stronger blur along x.
+  if (params_.edge_anisotropic_blur) {
+    cv::GaussianBlur(gray, gray, cv::Size(7, 3), 1.5, 0.8);
+  }
+
   cv::Mat magnitude;
   cv::Mat orientation = cv::Mat::zeros(gray.size(), CV_32F);
   if (params_.use_steerable_filter) {
-    magnitude = applySteerableBank(gray);
+    magnitude = applySteerableBank(gray, &orientation);
   } else {
     cv::Mat gx;
     cv::Mat gy;
@@ -97,6 +123,10 @@ std::vector<EdgePoint> EdgeExtractor::extract(const cv::Mat & bev_bgr, cv::Mat *
     cv::morphologyEx(mag_u8, mag_u8, cv::MORPH_CLOSE, kernel);
   }
   hysteresisThreshold(mag_u8, orientation);
+
+  if (params_.edge_thin) {
+    thinBinaryEdges(mag_u8);
+  }
 
   if (debug_edges) {
     *debug_edges = mag_u8.clone();
