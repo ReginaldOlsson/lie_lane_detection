@@ -8,6 +8,30 @@ For deeper mathematical context, graded-Lie analogies, and a refinement roadmap 
 
 Improvements inspired by Lewis et al. (IVCNZ 2016) parabolic Hough + RHT for power lines are documented in **[docs/LEWIS_HOUGH_CURVES.md](docs/LEWIS_HOUGH_CURVES.md)**.
 
+A planned **line-first → Lie-curve** variant (OpenCV `HoughLinesP` then Lie-Hough grouping) is described in **[docs/LINE_TO_CURVE_HOUGH.md](docs/LINE_TO_CURVE_HOUGH.md)**. It runs in a separate node for side-by-side comparison.
+
+### Compare edge vs line pipelines
+
+**Offline (all synthetic scenes):**
+
+```bash
+compare_lane_detection --scenes /home/mosal/rviz_ws/lane_detection_test_images \
+  --output /tmp/lie_lane_compare
+```
+
+**ROS (both nodes, different topics):**
+
+```bash
+ros2 launch lie_lane_detection compare_pipelines.launch.py
+```
+
+| Pipeline | Node | Marker topic | Debug topics |
+|----------|------|--------------|--------------|
+| Edge-pixel Lie-Hough | `lane_detector_node` | `/lanes/markers` | `/lanes/debug/*` |
+| Line-first Lie-Hough | `line_lane_detector_node` | `/lanes_line/markers` | `/lanes_line/debug/*` |
+
+Line node also publishes `/lanes_line/stats` (latency + segment count).
+
 ---
 
 ## Pipeline overview
@@ -25,12 +49,12 @@ flowchart LR
 
 | Stage | Module | Role |
 |-------|--------|------|
-| 1 | `IPMTransformer` | Warp forward camera view to metric BEV |
-| 2 | `EdgeExtractor` | CLAHE + steerable Sobel bank + hysteresis |
-| 3 | `LieHoughVoter` | Coarse-to-fine voting in SE(2) + (kappa, sigma) |
-| 4 | `ManifoldRansac` | Refine each seed; inliers on the lane manifold |
-| 5 | `MultiLaneExtractor` | NMS, quality gates, lane roles |
-| 6 | `MergeTopology` | Label parallel / merge / diverge pairs |
+| 1 | `preprocessing/IPMTransformer` | Warp forward camera view to metric BEV |
+| 2 | `preprocessing/EdgeExtractor` | CLAHE + steerable Sobel bank + hysteresis |
+| 3 | `voting/LieHoughVoter` | Coarse-to-fine voting in SE(2) + (kappa, sigma) |
+| 4 | `fitting/ManifoldRansac` | Refine each seed; inliers on the lane manifold |
+| 5 | `extraction/MultiLaneExtractor` | NMS, quality gates, lane roles |
+| 6 | `extraction/MergeTopology` | Label parallel / merge / diverge pairs |
 
 Heavy steps use **Intel TBB** (`parallel_for`, `parallel_reduce`) for multi-core speed.
 
@@ -199,25 +223,52 @@ Synthetic curved scenes (`02_curved_highway`, `08_split_diverge`, `09_combined_c
 
 ## Package layout
 
+Headers under `include/lie_lane_detection/` mirror `src/` by module:
+
 ```
 lie_lane_detection/
-├── include/lie_lane_detection/   # Headers (pipeline, voter, RANSAC, template, …)
-├── src/                          # Implementations + nodes
-├── config/lane_detector.yaml     # Default ROS parameters
-├── launch/lane_detector.launch.py
-├── test/                         # gtest unit tests
-└── README.md                     # This file
+├── include/lie_lane_detection/
+│   ├── core/              types.hpp — XiVector, PipelineParams, LaneHypothesis
+│   ├── geometry/          deformable lane template (TemplateCurve)
+│   ├── preprocessing/     IPM warp, edge extraction
+│   ├── voting/            edge Lie-Hough + line Hough + line Lie-Hough
+│   ├── fitting/           manifold RANSAC
+│   ├── extraction/        multi-lane NMS, merge/diverge topology
+│   ├── pipeline/          runners, pipelines, shared quality gates
+│   ├── visualization/     overlay + RViz markers
+│   ├── common/            TBB helpers (parallel.hpp)
+│   └── testing/           synthetic BEV generator, test helpers
+├── src/
+│   ├── geometry/ … voting/ … fitting/ … extraction/ … pipeline/ …
+│   ├── visualization/
+│   ├── testing/
+│   ├── nodes/             lane_detector_node, line_lane_detector_node
+│   └── tools/             offline runners, compare_lane_detection
+├── test/                  gtests mirroring src/ modules
+│   ├── geometry/
+│   ├── voting/
+│   ├── fitting/
+│   ├── extraction/
+│   └── pipeline/
+├── config/                lane_detector.yaml, lane_detector_line.yaml
+├── launch/                lane_detector, compare_pipelines
+├── docs/                  MATHEMATICS.md, LEWIS_HOUGH_CURVES.md, …
+└── README.md
 ```
 
 **Executables**
 
-| Binary | Purpose |
-|--------|---------|
-| `lane_detector_node` | Live ROS 2 detection node |
-| `lane_detect_offline` | Single-image offline runner |
-| `generate_test_images` | Synthetic dataset + optional batch detect |
+| Binary | Location | Purpose |
+|--------|----------|---------|
+| `lane_detector_node` | `src/nodes/` | Edge-pixel Lie-Hough ROS node |
+| `line_lane_detector_node` | `src/nodes/` | Line-first Lie-Hough ROS node |
+| `lane_detect_offline` | `src/tools/` | Single-image offline runner |
+| `compare_lane_detection` | `src/tools/` | Edge vs line A/B comparison |
+| `generate_test_images` | `src/tools/` | Synthetic dataset + batch detect |
 
-**Core library:** `lie_lane_detection_core` — shared by all executables; entry point for embedding is `detectLanesInBev()` in `lane_detection_runner.hpp`.
+**Core library:** `lie_lane_detection_core` — entry points:
+- `detectLanesInBev()` → `pipeline/lane_detection_runner.hpp`
+- `detectLanesInBevFromLines()` → `pipeline/line_lane_detection_runner.hpp`
 
 ---
 

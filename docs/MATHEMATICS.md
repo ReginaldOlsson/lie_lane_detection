@@ -189,6 +189,8 @@ After `generate_test_images --detect`, see `curve_eval.txt` per scene:
 
 **Current weak point:** ω on `02` (heading / tilt) — aligns with needing **transverse distance** and finer ω bins in Stage B, not more κ bins.
 
+A complementary approach — **classical line Hough first, then Lie-Hough to group segments into curves** — is outlined in [LINE_TO_CURVE_HOUGH.md](LINE_TO_CURVE_HOUGH.md). Line tangents directly constrain ω and may address this weak point.
+
 ---
 
 ## Suggested reading (lane-relevant Lie theory)
@@ -200,6 +202,7 @@ After `generate_test_images --detect`, see `curve_eval.txt` per scene:
 | [MERL — Learning on Lie Groups](https://www.merl.com/publications/docs/TR2008-031.pdf) | `exp`/`log` detection & tracking |
 | [Sophus SE(2) docs](https://github.com/strasdat/Sophus) | Implementation of our SE(2) block |
 | [ReManNet (CVPR 2026)](https://arxiv.org/abs/2603.19776) | SPD manifold + log map for **3D** lanes (different group, same “work in Lie algebra” principle) |
+| [LINE_TO_CURVE_HOUGH.md](LINE_TO_CURVE_HOUGH.md) | Line Hough → Lie-curve grouping (design note) |
 
 ---
 
