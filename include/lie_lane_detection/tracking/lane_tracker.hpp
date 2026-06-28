@@ -73,7 +73,8 @@ struct TrackedFrameResult
 void narrowParamsForTracks(
   PipelineParams & params,
   const std::vector<LaneTrack> & tracks,
-  double margin_px);
+  double margin_px,
+  double ekf_gate_sigma = 2.5);
 
 /// Keep edges whose (x,y) falls inside any track corridor.
 std::vector<EdgePoint> filterEdgesInTrackCorridors(

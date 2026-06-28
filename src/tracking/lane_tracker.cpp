@@ -61,7 +61,8 @@ void kalmanFuseXi(
 void narrowParamsForTracks(
   PipelineParams & params,
   const std::vector<LaneTrack> & tracks,
-  double margin_px)
+  double margin_px,
+  double ekf_gate_sigma)
 {
   if (tracks.empty()) {
     return;
@@ -70,8 +71,12 @@ void narrowParamsForTracks(
   double vx_lo = std::numeric_limits<double>::max();
   double vx_hi = std::numeric_limits<double>::lowest();
   for (const auto & track : tracks) {
-    vx_lo = std::min(vx_lo, track.xi[0] - margin_px);
-    vx_hi = std::max(vx_hi, track.xi[0] + margin_px);
+    const double sigma_x = std::sqrt(std::max(1.0, track.p_diag[0]));
+    const double gate = params.use_ekf_temporal_prior ?
+      std::max(margin_px, ekf_gate_sigma * sigma_x) :
+      margin_px;
+    vx_lo = std::min(vx_lo, track.xi[0] - gate);
+    vx_hi = std::max(vx_hi, track.xi[0] + gate);
   }
 
   vx_lo = std::max(params.se2_vx_min, vx_lo);
@@ -166,10 +171,15 @@ void LaneTracker::predict(double dt)
     dt = 1.0 / 30.0;
   }
   for (auto & track : tracks_) {
+  const XiVector xi_prev = track.xi;
     if (!params_.fixed_camera) {
       track.xi += track.xi_dot * dt;
     } else {
       track.xi_dot *= std::max(0.0, 1.0 - 5.0 * dt);
+    }
+    if (dt > 1e-6) {
+      const XiVector delta = track.xi - xi_prev;
+      track.xi_dot = track.xi_dot * 0.7 + delta * (0.3 / dt);
     }
     track.p_diag[0] += params_.q_vx * dt;
     track.p_diag[2] += params_.q_omega * dt;
@@ -426,9 +436,12 @@ TrackedFrameResult LaneTracker::processFrame(
   }
 
   configureParamsForBev(detect_params, bev_bgr.cols, bev_bgr.rows);
+  const cv::Mat work_bev = prepareBevForDetection(bev_bgr, detect_params);
+  const double y_max = bevEffectiveYMax(bev_bgr.rows, detect_params);
+
   TemplateCurve curve(detect_params);
   curve.setBevExtents(
-    0.0, static_cast<double>(bev_bgr.rows),
+    0.0, y_max,
     0.0, static_cast<double>(bev_bgr.cols));
   MergeTopology merge_topology(detect_params, &curve);
 
@@ -452,7 +465,7 @@ TrackedFrameResult LaneTracker::processFrame(
 
   EdgeExtractor edge_extractor(detect_params);
   cv::Mat edges_img;
-  const auto all_edges = edge_extractor.extract(bev_bgr, &edges_img);
+  const auto all_edges = edge_extractor.extract(work_bev, &edges_img);
   result.edges = edges_img;
 
   const double border_margin =
@@ -460,22 +473,23 @@ TrackedFrameResult LaneTracker::processFrame(
   auto working_edges = filterBorderEdges(
     all_edges, border_margin,
     static_cast<double>(bev_bgr.cols) - border_margin);
+  working_edges = filterBevYMaxEdges(working_edges, y_max);
 
   if (run_main) {
     PipelineParams narrow_params = detect_params;
     if (!tracks_.empty()) {
       narrowParamsForTracks(
-        narrow_params, tracks_, params_.narrow_hough_margin_px);
+        narrow_params, tracks_, params_.narrow_hough_margin_px,
+        detect_params.ekf_hough_gate_sigma);
       if (params_.use_corridor_filter_on_main) {
         working_edges = filterEdgesInTrackCorridors(
-          working_edges, tracks_, params_, curve,
-          static_cast<double>(bev_bgr.rows));
+          working_edges, tracks_, params_, curve, y_max);
         working_edges = subsampleEdges(working_edges, 12000);
       }
     }
 
     const auto t_main0 = std::chrono::steady_clock::now();
-    const auto det = detectLanesInBev(bev_bgr, narrow_params);
+    const auto det = detectLanesInBev(work_bev, narrow_params);
     const auto t_main1 = std::chrono::steady_clock::now();
     result.main_ms = std::chrono::duration<double, std::milli>(t_main1 - t_main0).count();
     fuseMeasurements(det.lanes, static_cast<double>(bev_bgr.cols));
@@ -485,7 +499,7 @@ TrackedFrameResult LaneTracker::processFrame(
     stripeUpdate(
       working_edges, curve,
       static_cast<double>(bev_bgr.cols),
-      static_cast<double>(bev_bgr.rows),
+      y_max,
       detect_params);
     const auto t_stripe1 = std::chrono::steady_clock::now();
     result.stripe_ms = std::chrono::duration<double, std::milli>(t_stripe1 - t_stripe0).count();
@@ -496,7 +510,7 @@ TrackedFrameResult LaneTracker::processFrame(
   MultiLaneExtractor role_extractor(detect_params);
   result.lanes = role_extractor.extract(result.lanes);
   result.merges = merge_topology.analyze(result.lanes);
-  result.overlay = drawOverlay(bev_bgr, result.lanes, result.merges);
+  result.overlay = drawOverlay(work_bev, result.lanes, result.merges);
   result.track_count = tracks_.size();
 
   const auto t1 = std::chrono::steady_clock::now();

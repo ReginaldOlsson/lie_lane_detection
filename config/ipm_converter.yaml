@@ -1,0 +1,19 @@
+frontal_ipm_node:
+  ros__parameters:
+    image_topic: "/camera/image_raw"
+    frame_id: "camera_front"
+    bev_topic: "/ipm/bev"
+    roi_debug_topic: "/ipm/debug/roi"
+    homography_topic: "/ipm/homography"
+
+    bev_width_m: 20.0
+    bev_length_m: 60.0
+    bev_resolution_m_per_px: 0.05
+
+    use_manual_ipm: false
+    ipm_bottom_x_min_ratio: 0.02
+    ipm_bottom_x_max_ratio: 0.98
+    ipm_bottom_y_ratio: 0.97
+    ipm_top_y_offset_ratio: 0.12
+    ipm_top_y_min_ratio: 0.32
+    ipm_top_y_max_ratio: 0.72

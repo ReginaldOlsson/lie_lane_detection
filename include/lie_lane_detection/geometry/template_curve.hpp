@@ -22,6 +22,9 @@ public:
 
   double distanceToCurve(const XiVector & xi, const Vec2 & p, double * nearest_t = nullptr) const;
 
+  /// Minimum distance from a line segment to the curve (not midpoint-only).
+  double segmentDistanceToCurve(const XiVector & xi, const LineSegment & seg) const;
+
   Vec2 nearestPoint(const XiVector & xi, const Vec2 & p, double * nearest_t = nullptr) const;
 
   Vec2 tangentAt(const XiVector & xi, double t) const;

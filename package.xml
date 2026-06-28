@@ -22,6 +22,7 @@
   <depend>sophus</depend>
   <depend>eigen</depend>
   <build_depend>libtbb-dev</build_depend>
+  <build_depend>libceres-dev</build_depend>
   <exec_depend>libtbb12</exec_depend>
 
   <test_depend>ament_cmake_gtest</test_depend>

@@ -1,0 +1,46 @@
+bev_lane_detector_node:
+  ros__parameters:
+    bev_topic: "/ipm/bev"
+    frame_id: "camera_front"
+
+    use_steerable_filter: true
+    connect_dashed_edges: true
+    edge_anisotropic_blur: true
+    edge_thin: true
+    edge_low_threshold: 28.0
+    edge_high_threshold: 75.0
+
+    top_k_peaks: 6
+    max_lane_hypotheses: 8
+    max_output_lanes: 0
+    use_iterative_peeling: true
+    vote_threshold_px: 9.0
+    inlier_threshold_px: 10.0
+    min_inlier_ratio: 0.38
+    min_inliers: 18
+    min_lane_separation_px: 48.0
+    peel_edge_margin_px: 14.0
+    min_inlier_y_coverage: 0.35
+    inlier_dedup_ratio: 0.22
+    hough_hypothesis_merge_ratio: 0.85
+
+    line_hough_threshold: 30
+    line_min_length_px: 22.0
+    line_max_gap_px: 10.0
+
+    kappa_min: -0.28
+    kappa_max: 0.28
+    sigma_min: -0.55
+    sigma_max: 0.55
+
+    bev_bottom_exclude_px: 250.0
+
+    use_longitudinal_line_filter: true
+    longitudinal_max_deviation_rad: 0.52
+    use_line_ransac_init_gate: true
+    ceres_hard_gate_dist_px: 10.0
+    ceres_hard_gate_angle_rad: 0.32
+    ceres_heading_weight: 1.0
+    ceres_reject_corridor_center: true
+    ceres_corridor_half_width_px: 22.0
+    use_road_manifold_joint: true

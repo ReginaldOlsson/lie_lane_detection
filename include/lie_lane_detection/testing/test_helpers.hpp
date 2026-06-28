@@ -2,6 +2,7 @@
 
 #include <random>
 #include <vector>
+#include <cmath>
 
 #include "lie_lane_detection/geometry/template_curve.hpp"
 #include "lie_lane_detection/core/types.hpp"
@@ -28,11 +29,13 @@ inline std::vector<EdgePoint> samplePointsOnCurve(
     Vec2 p = curve.sample(xi, t);
     p.x() += noise(rng);
     p.y() += noise(rng);
+    const double t1 = std::clamp(t + 1e-3, 0.0, 1.0);
+    const Vec2 p1 = curve.sample(xi, t1);
     EdgePoint ep;
     ep.x = p.x();
     ep.y = p.y();
     ep.magnitude = 1.0;
-    ep.orientation = 0.0;
+    ep.orientation = std::atan2(p1.y() - p.y(), p1.x() - p.x());
     edges.push_back(ep);
   }
   return edges;

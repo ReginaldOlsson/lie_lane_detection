@@ -59,6 +59,14 @@ struct PipelineParams
   double bev_resolution_m_per_px{0.05};
   std::vector<double> ipm_src_points;  // 8 values: x0,y0,...
   std::vector<double> ipm_dst_points;  // 8 values in meters
+  /// Auto-IPM source trapezoid (fractions of image width/height).
+  double ipm_bottom_x_min_ratio{0.06};
+  double ipm_bottom_x_max_ratio{0.94};
+  double ipm_bottom_y_ratio{0.97};
+  double ipm_top_y_offset_ratio{0.12};
+  double ipm_top_y_min_ratio{0.42};
+  double ipm_top_y_max_ratio{0.72};
+  bool use_manual_ipm{false};
 
   // Edge extraction
   bool use_steerable_filter{true};
@@ -68,6 +76,8 @@ struct PipelineParams
   double edge_low_threshold{30.0};
   double edge_high_threshold{90.0};
   double edge_border_margin_ratio{0.07};
+  /// Pixels masked at bottom of BEV (hood / truck body). 0 = disabled.
+  double bev_bottom_exclude_px{0.0};
 
   // Lie-Hough Stage A (SE2)
   int se2_vx_bins{41};
@@ -90,6 +100,8 @@ struct PipelineParams
   double sigma_max{0.3};
   int top_k_peaks{8};
   int max_lane_hypotheses{8};
+  /// Final cap after extraction; 0 = unlimited. Use 2 for ego left/right boundaries.
+  int max_output_lanes{0};
   double nms_se2_min{0.3};
   double nms_def_min{0.05};
   bool use_iterative_peeling{true};
@@ -117,7 +129,66 @@ struct PipelineParams
 
   // Template sampling
   int template_samples{50};
+
+  // Continuous production pipeline (coarse SE2 Hough + Ceres LM)
+  bool use_continuous_pipeline{true};
+  bool use_coarse_pyramid_voter{true};
+  bool use_soft_voting{true};
+  bool use_ceres_fitter{true};
+  bool use_dual_space_prune{true};
+  bool use_line_kdtree{true};
+  bool use_peak_mean_shift{true};
+  double soft_vote_sigma_px{4.0};
+  int pyramid_coarse_bins{16};
+  int pyramid_refine_top_k{20};
+  int pyramid_refine_factor{2};
+  double ceres_huber_delta_px{5.0};
+  int ceres_max_iterations{25};
+  bool use_ekf_temporal_prior{true};
+  double ekf_hough_gate_sigma{2.5};
+
+  // Crosswalk / stop-bar rejection (absolute BEV longitudinal mask)
+  bool use_longitudinal_line_filter{true};
+  double longitudinal_max_deviation_rad{0.52};
+
+  // Per-peak line RANSAC init gate (before Ceres)
+  bool use_line_ransac_init_gate{true};
+  int line_ransac_init_iterations{80};
+  double line_ransac_init_angle_rad{0.35};
+
+  // Ceres hard association + heading residuals
+  double ceres_hard_gate_dist_px{12.0};
+  double ceres_hard_gate_angle_rad{0.35};
+  double ceres_heading_weight{1.0};
+  bool ceres_reject_corridor_center{false};
+  double ceres_corridor_half_width_px{18.0};
+  double ceres_length_weight_floor_px{8.0};
+
+  // Joint road manifold (shared T_ego, kappa, sigma, w_lane)
+  bool use_road_manifold_joint{true};
 };
+
+/// BEV forward axis = +y; lane segments ≈ vertical (angle ≈ π/2).
+inline double longitudinalDeviationRad(double segment_angle)
+{
+  double d = std::abs(segment_angle - CV_PI / 2.0);
+  d = std::min(d, CV_PI - d);
+  return d;
+}
+
+inline bool isLongitudinalSegment(double segment_angle, double max_deviation_rad)
+{
+  return longitudinalDeviationRad(segment_angle) <= max_deviation_rad;
+}
+
+inline double angleDiffRad(double a, double b)
+{
+  double d = std::abs(a - b);
+  while (d > CV_PI) {
+    d -= CV_PI;
+  }
+  return std::min(d, CV_PI - d);
+}
 
 struct LaneHypothesis
 {

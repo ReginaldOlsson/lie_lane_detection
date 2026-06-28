@@ -33,6 +33,9 @@ cv::Mat prepareBevImage(const cv::Mat & bev_bgr);
 /// Set a highway-style IPM trapezoid scaled to image size (TuSimple/CULane-like FOV).
 void setDefaultHighwayIpmRoi(PipelineParams & params, int cols, int rows);
 
+/// Rebuild ipm_dst_points from bev_width_m / bev_length_m (meters, ego-centered x).
+void updateIpmDstFromBevExtent(PipelineParams & params);
+
 /// Relaxed thresholds for noisy IPM warps from forward-camera datasets.
 void configureParamsForPerspectiveIpm(PipelineParams & params);
 

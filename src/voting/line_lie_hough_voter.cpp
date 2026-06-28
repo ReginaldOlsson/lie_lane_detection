@@ -10,6 +10,7 @@
 #include <opencv2/imgproc.hpp>
 
 #include "lie_lane_detection/common/parallel.hpp"
+#include "lie_lane_detection/voting/sparse_accumulator.hpp"
 
 namespace lie_lane_detection
 {
@@ -91,17 +92,34 @@ bool LineLieHoughVoter::lineSupportsXi(
   double vote_thresh_sq,
   double angle_thresh) const
 {
-  const Vec2 p(line.mx, line.my);
-  double t = 0.0;
-  const Vec2 q = template_curve_->nearestPoint(xi, p, &t);
-  const double ddx = p.x() - q.x();
-  const double ddy = p.y() - q.y();
-  if (ddx * ddx + ddy * ddy > vote_thresh_sq) {
+  // SE(2) adjoint: evaluate segment in hypothesis-local frame (translation removed).
+  const Sophus::SE2d g_inv = xiToSE2(xi).inverse();
+  const Vec2 p0 = g_inv * Vec2(line.x1, line.y1);
+  const Vec2 p1 = g_inv * Vec2(line.x2, line.y2);
+  const Vec2 pm = g_inv * Vec2(line.mx, line.my);
+
+  XiVector xi_local = XiVector::Zero();
+  xi_local[3] = xi[3];
+  xi_local[4] = xi[4];
+
+  LineSegment local_line = line;
+  local_line.x1 = p0.x();
+  local_line.y1 = p0.y();
+  local_line.x2 = p1.x();
+  local_line.y2 = p1.y();
+  local_line.mx = pm.x();
+  local_line.my = pm.y();
+
+  const double dist = template_curve_->segmentDistanceToCurve(xi_local, local_line);
+  if (dist * dist > vote_thresh_sq) {
     return false;
   }
-  const Vec2 tau = template_curve_->tangentAt(xi, t);
+  double t = 0.0;
+  template_curve_->nearestPoint(xi_local, pm, &t);
+  const Vec2 tau = template_curve_->tangentAt(xi_local, t);
   const double curve_angle = std::atan2(tau.y(), tau.x());
-  return angleDiff(curve_angle, line.angle) <= angle_thresh;
+  const double local_line_angle = std::atan2(p1.y() - p0.y(), p1.x() - p0.x());
+  return angleDiff(curve_angle, local_line_angle) <= angle_thresh;
 }
 
 std::vector<LaneHypothesis> LineLieHoughVoter::vote(
@@ -162,12 +180,9 @@ std::vector<LaneHypothesis> LineLieHoughVoter::vote(
       return false;
     };
 
-  auto merge_accum = [](const std::vector<double> & a, const std::vector<double> & b) {
-      std::vector<double> merged = a;
-      for (size_t i = 0; i < merged.size(); ++i) {
-        merged[i] += b[i];
-      }
-      return merged;
+  auto merge_accum = [](std::vector<double> a, const std::vector<double> & b) {
+      DenseAccumulator::mergeInPlace(a, b);
+      return a;
     };
 
   se2_accum = tbb::parallel_reduce(

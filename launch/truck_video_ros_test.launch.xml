@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Truck highway video test: video publisher + two-node BEV pipeline
+  (frontal_ipm_node -> bev_lane_detector_node).
+
+  Usage:
+    ros2 launch lie_lane_detection truck_video_ros_test.launch.xml
+    ros2 launch lie_lane_detection truck_video_ros_test.launch.xml use_video_publisher:=true
+    ros2 launch lie_lane_detection truck_video_ros_test.launch.xml video_path:=/path/to/video.mp4
+-->
+<launch>
+  <arg name="use_video_publisher" default="false" description="Publish images from video file"/>
+  <arg name="video_path" default="/home/mosal/autoware/lane_detection_test_images/truck_frontal_video/truck_highway_7m40.mp4"/>
+  <arg name="image_topic" default="/camera/image_raw"/>
+  <arg name="publish_rate_hz" default="10.0"/>
+  <arg name="target_width" default="640"/>
+  <arg name="bev_width_m" default="20.0"/>
+  <arg name="bev_length_m" default="60.0"/>
+  <arg name="bev_bottom_exclude_px" default="250.0"/>
+  <arg name="max_output_lanes" default="0"/>
+
+  <include file="$(find-pkg-share lie_lane_detection)/launch/truck_bev_pipeline.launch.xml">
+    <arg name="use_video_publisher" value="$(var use_video_publisher)"/>
+    <arg name="video_path" value="$(var video_path)"/>
+    <arg name="image_topic" value="$(var image_topic)"/>
+    <arg name="publish_rate_hz" value="$(var publish_rate_hz)"/>
+    <arg name="target_width" value="$(var target_width)"/>
+    <arg name="bev_width_m" value="$(var bev_width_m)"/>
+    <arg name="bev_length_m" value="$(var bev_length_m)"/>
+    <arg name="bev_bottom_exclude_px" value="$(var bev_bottom_exclude_px)"/>
+    <arg name="max_output_lanes" value="$(var max_output_lanes)"/>
+  </include>
+</launch>

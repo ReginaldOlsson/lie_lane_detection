@@ -1,6 +1,6 @@
 #pragma once
 
-#include <vector>
+#include <opencv2/core.hpp>
 
 #include "lie_lane_detection/fitting/manifold_ransac.hpp"
 #include "lie_lane_detection/geometry/template_curve.hpp"
@@ -21,10 +21,23 @@ bool passesQualityGate(
   const PipelineParams & params,
   double image_height);
 
+/// Highest valid forward row in BEV (excludes bottom hood crop).
+double bevEffectiveYMax(int bev_rows, const PipelineParams & params);
+
+/// Black out bottom `bev_bottom_exclude_px` rows (truck body / hood).
+void maskBevBottomExclude(cv::Mat & bev_bgr, const PipelineParams & params);
+
+/// Clone BEV and mask bottom exclude region when enabled.
+cv::Mat prepareBevForDetection(const cv::Mat & bev_bgr, const PipelineParams & params);
+
 std::vector<EdgePoint> filterBorderEdges(
   const std::vector<EdgePoint> & edges,
   double x_min,
   double x_max);
+
+std::vector<EdgePoint> filterBevYMaxEdges(
+  const std::vector<EdgePoint> & edges,
+  double y_max);
 
 std::vector<EdgePoint> peelEdgesNearCurve(
   const std::vector<EdgePoint> & edges,
@@ -38,6 +51,10 @@ std::vector<LineSegment> filterBorderLines(
   const std::vector<LineSegment> & lines,
   double x_min,
   double x_max);
+
+std::vector<LineSegment> filterBevYMaxLines(
+  const std::vector<LineSegment> & lines,
+  double y_max);
 
 std::vector<LineSegment> peelLinesNearCurve(
   const std::vector<LineSegment> & lines,

@@ -9,8 +9,10 @@ This module estimates IPM parameters automatically from a single frontal frame (
 1. **Edge detection** — Canny on the lower half of the image.
 2. **Line segments** — `HoughLinesP`, filtered to near-vertical segments in the road region.
 3. **Vanishing point** — Pairwise intersections of lane-like segments; vote in image space for the dominant VP above the horizon.
-4. **IPM trapezoid** — Apex at the VP; bottom corners at ~6% and ~94% of image width; top edge from rays through the VP.
+4. **IPM trapezoid** — Apex at the VP; bottom corners from `ipm_bottom_x_min_ratio` / `ipm_bottom_x_max_ratio`; top edge from rays through the VP (`ipm_top_y_*` clamps).
 5. **Homography** — `ipm_src_points` / `ipm_dst_points` → `IPMTransformer::computeHomography()` → `warpPerspective`.
+
+Metric BEV extent comes from `bev_width_m`, `bev_length_m`, and `bev_resolution_m_per_px` (caller / yaml). `updateIpmDstFromBevExtent()` rebuilds destination corners in meters.
 
 If VP estimation fails (too few lines, low confidence), the code falls back to `setDefaultHighwayIpmRoi()`.
 
@@ -42,6 +44,34 @@ for (each frame) {
 | `warpFrontalAutoIpm()` | Convenience warp with optional debug viz |
 
 `FrontalHomographyResult` includes `H_img2bev`, `params.ipm_src_points`, `bev`, and `debug_roi` (trapezoid drawn on input).
+
+## ROS two-node pipeline (recommended)
+
+Split IPM from detection for independent tuning:
+
+| Node | Input | Output |
+|------|-------|--------|
+| `frontal_ipm_node` | `/camera/image_raw` | `/ipm/bev`, `/ipm/debug/roi`, `/ipm/homography` |
+| `bev_lane_detector_node` | `/ipm/bev` | `/lanes/detect/{overlay,edges,markers,stats}` |
+
+```bash
+ros2 launch lie_lane_detection truck_bev_pipeline.launch.xml use_video_publisher:=true
+```
+
+Config: `config/ipm_converter.yaml` (metric extent + trapezoid ratios), `config/bev_lane_detector.yaml` (detection only).
+
+**Truck defaults:** 20 m × 60 m BEV, bottom corners 2%–98% image width, `ipm_top_y_min_ratio: 0.32`.
+
+Tune IPM without touching detection:
+
+```bash
+ros2 launch lie_lane_detection truck_bev_pipeline.launch.xml \
+  bev_width_m:=24.0 bev_length_m:=70.0 use_video_publisher:=true
+```
+
+Compare `/ipm/debug/roi` (yellow trapezoid on camera) with `/ipm/bev` before adjusting detection thresholds.
+
+`tracked_lane_detector_node` (monolithic IPM + detect) is **deprecated**; use the two-node chain above.
 
 ## Tools
 

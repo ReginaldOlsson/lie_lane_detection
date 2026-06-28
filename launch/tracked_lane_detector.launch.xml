@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Tracked lane detector only (subscribe to an existing image topic).
+
+  Usage:
+    ros2 launch lie_lane_detection tracked_lane_detector.launch.xml
+    ros2 launch lie_lane_detection tracked_lane_detector.launch.xml image_topic:=/sensing/camera/front/image_raw
+-->
+<launch>
+  <arg name="image_topic" default="/camera/image_raw" description="Input image topic"/>
+  <arg name="use_lane_tracking" default="false" description="Enable temporal lane tracker"/>
+  <arg name="track_main_interval" default="3" description="Full detect every N frames (tracking mode only)"/>
+  <arg name="publish_raw" default="false" description="Publish /lanes/raw/* when tracking is on"/>
+
+  <node pkg="lie_lane_detection" exec="tracked_lane_detector_node" name="tracked_lane_detector_node" output="screen">
+    <param from="$(find-pkg-share lie_lane_detection)/config/tracked_lane_detector.yaml"/>
+    <param name="image_topic" value="$(var image_topic)"/>
+    <param name="use_lane_tracking" value="$(var use_lane_tracking)"/>
+    <param name="track_main_interval" value="$(var track_main_interval)"/>
+    <param name="publish_raw" value="$(var publish_raw)"/>
+  </node>
+</launch>

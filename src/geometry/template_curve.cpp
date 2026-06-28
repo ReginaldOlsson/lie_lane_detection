@@ -108,6 +108,24 @@ Vec2 TemplateCurve::nearestPoint(const XiVector & xi, const Vec2 & p, double * n
   return sample(xi, t);
 }
 
+double TemplateCurve::segmentDistanceToCurve(const XiVector & xi, const LineSegment & seg) const
+{
+  const Vec2 p0(seg.x1, seg.y1);
+  const Vec2 p1(seg.x2, seg.y2);
+  const double d0 = distanceToCurve(xi, p0);
+  const double d1 = distanceToCurve(xi, p1);
+  const Vec2 pm(seg.mx, seg.my);
+  const double dm = distanceToCurve(xi, pm);
+  constexpr int kInterior = 4;
+  double best = std::min({d0, d1, dm});
+  for (int i = 1; i < kInterior; ++i) {
+    const double u = static_cast<double>(i) / static_cast<double>(kInterior);
+    const Vec2 p = p0 + u * (p1 - p0);
+    best = std::min(best, distanceToCurve(xi, p));
+  }
+  return best;
+}
+
 double TemplateCurve::lateralAtY(const XiVector & xi, double y) const
 {
   constexpr int kSearchSteps = 100;

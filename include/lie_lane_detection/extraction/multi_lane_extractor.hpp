@@ -17,6 +17,8 @@ public:
 private:
   void assignRoles(std::vector<LaneHypothesis> & lanes) const;
 
+  std::vector<LaneHypothesis> limitOutputLanes(std::vector<LaneHypothesis> lanes) const;
+
   PipelineParams params_;
 };
 

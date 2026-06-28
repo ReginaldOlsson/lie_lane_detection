@@ -19,6 +19,7 @@ TEST(MultiLaneTest, DetectsThreeParallelLanes)
   params.min_lane_separation_px = 15.0;
   params.min_inlier_ratio = 0.25;
   params.inlier_dedup_ratio = 0.45;
+  params.use_ceres_fitter = false;
   params.se2_omega_bins = 7;
   params.kappa_bins = 7;
 
@@ -48,4 +49,54 @@ TEST(MultiLaneTest, DetectsThreeParallelLanes)
   lie_lane_detection::MultiLaneExtractor extractor(params);
   const auto lanes = extractor.extract(refined);
   EXPECT_GE(lanes.size(), 2u);
+}
+
+TEST(MultiLaneTest, LateralDedupWithoutSupportingEdges)
+{
+  lie_lane_detection::PipelineParams params;
+  params.min_lane_separation_px = 20.0;
+  params.min_inlier_ratio = 0.1;
+  params.max_output_lanes = 0;
+
+  lie_lane_detection::LaneHypothesis a;
+  a.xi[0] = 50.0;
+  a.score = 10.0;
+  a.inlier_ratio = 0.5;
+  lie_lane_detection::LaneHypothesis b;
+  b.xi[0] = 55.0;
+  b.score = 8.0;
+  b.inlier_ratio = 0.5;
+
+  lie_lane_detection::MultiLaneExtractor extractor(params);
+  const auto lanes = extractor.extract({a, b});
+  EXPECT_EQ(lanes.size(), 1u);
+}
+
+TEST(MultiLaneTest, MaxOutputLanesKeepsEgoPair)
+{
+  lie_lane_detection::PipelineParams params;
+  params.min_lane_separation_px = 15.0;
+  params.min_inlier_ratio = 0.1;
+  params.max_output_lanes = 2;
+  params.se2_vx_min = 0.0;
+  params.se2_vx_max = 200.0;
+
+  lie_lane_detection::LaneHypothesis left;
+  left.xi[0] = 60.0;
+  left.score = 5.0;
+  left.inlier_ratio = 0.5;
+  lie_lane_detection::LaneHypothesis right;
+  right.xi[0] = 140.0;
+  right.score = 4.0;
+  right.inlier_ratio = 0.5;
+  lie_lane_detection::LaneHypothesis far_left;
+  far_left.xi[0] = 20.0;
+  far_left.score = 100.0;
+  far_left.inlier_ratio = 0.9;
+
+  lie_lane_detection::MultiLaneExtractor extractor(params);
+  const auto lanes = extractor.extract({far_left, left, right});
+  ASSERT_EQ(lanes.size(), 2u);
+  EXPECT_LT(lanes[0].xi[0], 100.0);
+  EXPECT_GT(lanes[1].xi[0], 100.0);
 }

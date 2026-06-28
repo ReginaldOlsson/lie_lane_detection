@@ -260,8 +260,12 @@ lie_lane_detection/
 
 | Binary | Location | Purpose |
 |--------|----------|---------|
-| `lane_detector_node` | `src/nodes/` | Edge-pixel Lie-Hough ROS node |
-| `line_lane_detector_node` | `src/nodes/` | Line-first Lie-Hough ROS node |
+| `frontal_ipm_node` | `src/nodes/` | Auto-IPM: camera → `/ipm/bev` |
+| `bev_lane_detector_node` | `src/nodes/` | BEV-only lane detection |
+| `bev_mosaic_node` | `src/nodes/` | Temporal BEV orthomosaic (ECC / ORB registration) |
+| `tracked_lane_detector_node` | `src/nodes/` | **Deprecated** monolithic IPM + detect |
+| `lane_detector_node` | `src/nodes/` | Edge-pixel Lie-Hough ROS node (manual IPM) |
+| `line_lane_detector_node` | `src/nodes/` | Line-first Lie-Hough ROS node (manual IPM) |
 | `lane_detect_offline` | `src/tools/` | Single-image offline runner |
 | `compare_lane_detection` | `src/tools/` | Edge vs line A/B comparison |
 | `generate_test_images` | `src/tools/` | Synthetic dataset + batch detect |

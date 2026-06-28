@@ -5,6 +5,7 @@
 #include <random>
 
 #include "lie_lane_detection/common/parallel.hpp"
+#include "lie_lane_detection/fitting/ceres_lane_fitter.hpp"
 
 namespace lie_lane_detection
 {
@@ -107,6 +108,16 @@ int ManifoldRansac::countInliers(
 void ManifoldRansac::refineGaussNewton(XiVector & xi, const std::vector<EdgePoint> & inliers) const
 {
   if (inliers.empty()) {
+    return;
+  }
+
+  if (params_.use_ceres_fitter) {
+    CeresLaneFitter fitter(params_, template_curve_);
+    LaneHypothesis seed;
+    seed.xi = xi;
+    seed.score = 1.0;
+    const LaneHypothesis refined = fitter.fitEdges(seed, inliers);
+    xi = refined.xi;
     return;
   }
 

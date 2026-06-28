@@ -1,0 +1,22 @@
+bev_mosaic_node:
+  ros__parameters:
+    bev_topic: "/ipm/bev"
+    frame_id: "bev_mosaic"
+    canvas_topic: "/ipm/mosaic/canvas"
+    aligned_topic: "/ipm/mosaic/aligned"
+    pose_topic: "/ipm/mosaic/global_pose"
+    stats_topic: "/ipm/mosaic/stats"
+    reset_on_first_frame: false
+
+    # registration_method: auto | ecc | features
+    registration_method: "auto"
+    canvas_margin_px: 400
+    min_ecc_correlation: 0.35
+    ecc_max_iterations: 50
+    ecc_epsilon: 0.00001
+    orb_features: 1200
+    feature_match_ratio: 0.75
+    feature_min_inliers: 12
+    max_step_translation_px: 80.0
+    max_step_rotation_rad: 0.12
+    use_constant_velocity_fallback: true

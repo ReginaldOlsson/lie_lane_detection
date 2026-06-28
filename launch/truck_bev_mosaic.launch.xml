@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Temporal BEV orthomosaic: video (optional) -> IPM -> mosaic accumulation.
+
+  Usage:
+    ros2 launch lie_lane_detection truck_bev_mosaic.launch.xml use_video_publisher:=true
+    ros2 launch lie_lane_detection truck_bev_mosaic.launch.xml use_lane_detection:=true
+-->
+<launch>
+  <arg name="use_video_publisher" default="false"/>
+  <arg name="use_lane_detection" default="false" description="Also run bev_lane_detector_node on /ipm/bev"/>
+  <arg name="video_path" default="/home/mosal/autoware/lane_detection_test_images/truck_frontal_video/truck_highway_7m40.mp4"/>
+  <arg name="image_topic" default="/camera/image_raw"/>
+  <arg name="bev_topic" default="/ipm/bev"/>
+  <arg name="publish_rate_hz" default="10.0"/>
+  <arg name="target_width" default="640"/>
+  <arg name="bev_width_m" default="20.0"/>
+  <arg name="bev_length_m" default="60.0"/>
+  <arg name="registration_method" default="auto" description="auto | ecc | features"/>
+
+  <group if="$(var use_video_publisher)">
+    <node pkg="lie_lane_detection" exec="video_image_publisher_node" name="video_image_publisher" output="screen">
+      <param name="video_path" value="$(var video_path)"/>
+      <param name="image_topic" value="$(var image_topic)"/>
+      <param name="frame_id" value="camera_front"/>
+      <param name="publish_rate_hz" value="$(var publish_rate_hz)"/>
+      <param name="loop" value="true"/>
+      <param name="target_width" value="$(var target_width)"/>
+    </node>
+  </group>
+
+  <node pkg="lie_lane_detection" exec="frontal_ipm_node" name="frontal_ipm_node" output="screen">
+    <param from="$(find-pkg-share lie_lane_detection)/config/ipm_converter.yaml"/>
+    <param name="image_topic" value="$(var image_topic)"/>
+    <param name="bev_topic" value="$(var bev_topic)"/>
+    <param name="bev_width_m" value="$(var bev_width_m)"/>
+    <param name="bev_length_m" value="$(var bev_length_m)"/>
+  </node>
+
+  <node pkg="lie_lane_detection" exec="bev_mosaic_node" name="bev_mosaic_node" output="screen">
+    <param from="$(find-pkg-share lie_lane_detection)/config/bev_mosaic.yaml"/>
+    <param name="bev_topic" value="$(var bev_topic)"/>
+    <param name="registration_method" value="$(var registration_method)"/>
+  </node>
+
+  <group if="$(var use_lane_detection)">
+    <node pkg="lie_lane_detection" exec="bev_lane_detector_node" name="bev_lane_detector_node" output="screen">
+      <param from="$(find-pkg-share lie_lane_detection)/config/bev_lane_detector.yaml"/>
+      <param name="bev_topic" value="$(var bev_topic)"/>
+    </node>
+  </group>
+</launch>

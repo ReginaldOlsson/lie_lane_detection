@@ -42,6 +42,55 @@ void MultiLaneExtractor::assignRoles(std::vector<LaneHypothesis> & lanes) const
   }
 }
 
+std::vector<LaneHypothesis> MultiLaneExtractor::limitOutputLanes(
+  std::vector<LaneHypothesis> lanes) const
+{
+  const int cap = params_.max_output_lanes;
+  if (cap <= 0 || static_cast<int>(lanes.size()) <= cap) {
+    assignRoles(lanes);
+    return lanes;
+  }
+
+  if (cap == 2 && lanes.size() >= 2) {
+    const double center_x = 0.5 * (params_.se2_vx_min + params_.se2_vx_max);
+    const LaneHypothesis * best_left = nullptr;
+    const LaneHypothesis * best_right = nullptr;
+    double best_left_score = -1.0;
+    double best_right_score = -1.0;
+    for (const auto & lane : lanes) {
+      if (lane.xi[0] < center_x) {
+        if (lane.score > best_left_score) {
+          best_left_score = lane.score;
+          best_left = &lane;
+        }
+      } else if (lane.xi[0] > center_x) {
+        if (lane.score > best_right_score) {
+          best_right_score = lane.score;
+          best_right = &lane;
+        }
+      }
+    }
+    std::vector<LaneHypothesis> pair;
+    if (best_left != nullptr) {
+      pair.push_back(*best_left);
+    }
+    if (best_right != nullptr) {
+      pair.push_back(*best_right);
+    }
+    if (static_cast<int>(pair.size()) == cap) {
+      assignRoles(pair);
+      return pair;
+    }
+  }
+
+  std::sort(lanes.begin(), lanes.end(), [](const LaneHypothesis & a, const LaneHypothesis & b) {
+      return a.score > b.score;
+    });
+  lanes.resize(static_cast<size_t>(cap));
+  assignRoles(lanes);
+  return lanes;
+}
+
 std::vector<LaneHypothesis> MultiLaneExtractor::extract(std::vector<LaneHypothesis> candidates) const
 {
   std::sort(candidates.begin(), candidates.end(), [](const LaneHypothesis & a, const LaneHypothesis & b) {
@@ -59,17 +108,17 @@ std::vector<LaneHypothesis> MultiLaneExtractor::extract(std::vector<LaneHypothes
 
     bool duplicate = false;
     for (const auto & existing : kept) {
+      if (std::abs(cand.xi[0] - existing.xi[0]) < params_.min_lane_separation_px) {
+        duplicate = true;
+        break;
+      }
+
       if (existing.supporting_edges.empty() || cand.supporting_edges.empty()) {
         if (hypothesisDistance(cand.xi, existing.xi) < params_.nms_se2_min) {
           duplicate = true;
           break;
         }
         continue;
-      }
-
-      if (std::abs(cand.xi[0] - existing.xi[0]) < params_.min_lane_separation_px) {
-        duplicate = true;
-        break;
       }
 
       std::set<std::pair<int, int>> existing_pts;
@@ -98,8 +147,7 @@ std::vector<LaneHypothesis> MultiLaneExtractor::extract(std::vector<LaneHypothes
     }
   }
 
-  assignRoles(kept);
-  return kept;
+  return limitOutputLanes(std::move(kept));
 }
 
 }  // namespace lie_lane_detection

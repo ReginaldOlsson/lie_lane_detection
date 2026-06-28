@@ -222,7 +222,7 @@ VanishingPointEstimate VanishingPointTracker::update(const VanishingPointEstimat
 
 VanishingPointEstimate estimateVanishingPoint(
   const cv::Mat & image_bgr,
-  const PipelineParams & params)
+  const PipelineParams & /*params*/)
 {
   VanishingPointEstimate result;
   if (image_bgr.empty()) {
@@ -348,19 +348,19 @@ bool configureAutoIpmRoi(
   vp_x = std::clamp(vp_x, 0.25 * w, 0.75 * w);
   vp_y = std::clamp(vp_y, 0.05 * h, 0.58 * h);
 
-  const double bl_x = 0.06 * w;
-  const double br_x = 0.94 * w;
-  const double bl_y = 0.97 * h;
+  const double bl_x = params.ipm_bottom_x_min_ratio * w;
+  const double br_x = params.ipm_bottom_x_max_ratio * w;
+  const double bl_y = params.ipm_bottom_y_ratio * h;
   const double br_y = bl_y;
-  const double y_top = std::clamp(vp_y + 0.12 * h, 0.42 * h, 0.72 * h);
+  const double y_top = std::clamp(
+    vp_y + params.ipm_top_y_offset_ratio * h,
+    params.ipm_top_y_min_ratio * h,
+    params.ipm_top_y_max_ratio * h);
 
   const cv::Point2f tl = pointOnRay(vp_x, vp_y, bl_x, bl_y, y_top);
   const cv::Point2f tr = pointOnRay(vp_x, vp_y, br_x, br_y, y_top);
 
-  params.bev_width_m = 12.0;
-  params.bev_length_m = 40.0;
-  params.bev_resolution_m_per_px = 0.05;
-  params.ipm_dst_points = {-6.0, 0.0, 6.0, 0.0, 6.0, 40.0, -6.0, 40.0};
+  updateIpmDstFromBevExtent(params);
   params.ipm_src_points = {
     bl_x, bl_y,
     br_x, br_y,
@@ -390,7 +390,11 @@ FrontalHomographyResult estimateFrontalHomography(
   result.vanishing_point = vp;
   result.used_fallback_roi = !vp.valid;
 
-  if (vp.valid) {
+  if (params.use_manual_ipm && params.ipm_src_points.size() >= 8) {
+    if (params.ipm_dst_points.size() < 8) {
+      updateIpmDstFromBevExtent(params);
+    }
+  } else if (vp.valid) {
     configureAutoIpmRoi(params, image_bgr.cols, image_bgr.rows, vp.x, vp.y);
   } else {
     setDefaultHighwayIpmRoi(params, image_bgr.cols, image_bgr.rows);

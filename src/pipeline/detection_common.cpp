@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+#include <opencv2/core.hpp>
+
 #include "lie_lane_detection/fitting/manifold_ransac.hpp"
 #include "lie_lane_detection/common/parallel.hpp"
 #include "lie_lane_detection/geometry/template_curve.hpp"
@@ -60,6 +62,34 @@ bool passesQualityGate(
   return true;
 }
 
+double bevEffectiveYMax(int bev_rows, const PipelineParams & params)
+{
+  const double exclude = std::max(0.0, params.bev_bottom_exclude_px);
+  return std::max(1.0, static_cast<double>(bev_rows) - exclude);
+}
+
+void maskBevBottomExclude(cv::Mat & bev_bgr, const PipelineParams & params)
+{
+  const int exclude = static_cast<int>(std::round(std::max(0.0, params.bev_bottom_exclude_px)));
+  if (exclude <= 0 || bev_bgr.empty()) {
+    return;
+  }
+  const int y0 = std::max(0, bev_bgr.rows - exclude);
+  if (y0 < bev_bgr.rows) {
+    bev_bgr.rowRange(y0, bev_bgr.rows).setTo(cv::Scalar(0, 0, 0));
+  }
+}
+
+cv::Mat prepareBevForDetection(const cv::Mat & bev_bgr, const PipelineParams & params)
+{
+  if (params.bev_bottom_exclude_px <= 0.0 || bev_bgr.empty()) {
+    return bev_bgr;
+  }
+  cv::Mat masked = bev_bgr.clone();
+  maskBevBottomExclude(masked, params);
+  return masked;
+}
+
 std::vector<EdgePoint> filterBorderEdges(
   const std::vector<EdgePoint> & edges,
   double x_min,
@@ -69,6 +99,20 @@ std::vector<EdgePoint> filterBorderEdges(
   filtered.reserve(edges.size());
   for (const auto & e : edges) {
     if (e.x >= x_min && e.x <= x_max) {
+      filtered.push_back(e);
+    }
+  }
+  return filtered;
+}
+
+std::vector<EdgePoint> filterBevYMaxEdges(
+  const std::vector<EdgePoint> & edges,
+  double y_max)
+{
+  std::vector<EdgePoint> filtered;
+  filtered.reserve(edges.size());
+  for (const auto & e : edges) {
+    if (e.y < y_max) {
       filtered.push_back(e);
     }
   }
@@ -115,6 +159,20 @@ std::vector<LineSegment> filterBorderLines(
   filtered.reserve(lines.size());
   for (const auto & line : lines) {
     if (line.mx >= x_min && line.mx <= x_max) {
+      filtered.push_back(line);
+    }
+  }
+  return filtered;
+}
+
+std::vector<LineSegment> filterBevYMaxLines(
+  const std::vector<LineSegment> & lines,
+  double y_max)
+{
+  std::vector<LineSegment> filtered;
+  filtered.reserve(lines.size());
+  for (const auto & line : lines) {
+    if (line.my < y_max && std::min(line.y1, line.y2) < y_max) {
       filtered.push_back(line);
     }
   }

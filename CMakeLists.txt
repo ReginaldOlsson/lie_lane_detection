@@ -23,6 +23,7 @@ find_package(Sophus REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(TBB REQUIRED)
+find_package(Ceres REQUIRED)
 
 include_directories(
   include
@@ -38,7 +39,18 @@ set(CORE_SOURCES
   src/voting/lie_hough_voter.cpp
   src/voting/line_hough_extractor.cpp
   src/voting/line_lie_hough_voter.cpp
+  src/voting/sparse_accumulator.cpp
+  src/voting/lie_exp_cache.cpp
+  src/voting/peak_refinement.cpp
+  src/voting/line_kdtree.cpp
+  src/voting/dual_space_pruner.cpp
+  src/voting/longitudinal_line_filter.cpp
+  src/voting/coarse_se2_voter.cpp
   src/fitting/manifold_ransac.cpp
+  src/fitting/observation_association.cpp
+  src/fitting/line_segment_ransac_gate.cpp
+  src/fitting/ceres_lane_fitter.cpp
+  src/fitting/road_manifold_fitter.cpp
   src/extraction/multi_lane_extractor.cpp
   src/extraction/merge_topology.cpp
   src/pipeline/detection_common.cpp
@@ -48,6 +60,8 @@ set(CORE_SOURCES
   src/pipeline/line_lane_detection_pipeline.cpp
   src/tracking/lane_tracker.cpp
   src/motion/ego_motion_estimator.cpp
+  src/mosaic/bev_mosaic_accumulator.cpp
+  src/nodes/node_params.cpp
   src/visualization/visualization.cpp
   src/testing/synthetic_bev_generator.cpp
 )
@@ -60,6 +74,7 @@ target_include_directories(lie_lane_detection_core PUBLIC
 target_link_libraries(lie_lane_detection_core
   Sophus::Sophus
   TBB::tbb
+  Ceres::ceres
   ${OpenCV_LIBS}
 )
 ament_target_dependencies(lie_lane_detection_core
@@ -116,6 +131,37 @@ ament_target_dependencies(tracked_lane_detector_node
   image_transport
 )
 
+add_executable(frontal_ipm_node src/nodes/frontal_ipm_node.cpp)
+target_link_libraries(frontal_ipm_node lie_lane_detection_core)
+ament_target_dependencies(frontal_ipm_node
+  rclcpp
+  sensor_msgs
+  std_msgs
+  cv_bridge
+  image_transport
+)
+
+add_executable(bev_lane_detector_node src/nodes/bev_lane_detector_node.cpp)
+target_link_libraries(bev_lane_detector_node lie_lane_detection_core)
+ament_target_dependencies(bev_lane_detector_node
+  rclcpp
+  sensor_msgs
+  visualization_msgs
+  std_msgs
+  cv_bridge
+  image_transport
+)
+
+add_executable(bev_mosaic_node src/nodes/bev_mosaic_node.cpp)
+target_link_libraries(bev_mosaic_node lie_lane_detection_core)
+ament_target_dependencies(bev_mosaic_node
+  rclcpp
+  sensor_msgs
+  std_msgs
+  cv_bridge
+  image_transport
+)
+
 # --- Offline tools ---
 add_executable(lane_detect_offline src/tools/lane_detect_offline.cpp)
 target_link_libraries(lane_detect_offline lie_lane_detection_core ${OpenCV_LIBS})
@@ -138,6 +184,9 @@ install(TARGETS
   line_lane_detector_node
   video_image_publisher_node
   tracked_lane_detector_node
+  frontal_ipm_node
+  bev_lane_detector_node
+  bev_mosaic_node
   lane_detect_offline
   lane_detect_video_offline
   estimate_frontal_homography
@@ -184,8 +233,26 @@ if(BUILD_TESTING)
   ament_add_gtest(test_vanishing_point_tracker test/preprocessing/test_vanishing_point_tracker.cpp)
   target_link_libraries(test_vanishing_point_tracker lie_lane_detection_core)
 
+  ament_add_gtest(test_ipm_roi test/preprocessing/test_ipm_roi.cpp)
+  target_link_libraries(test_ipm_roi lie_lane_detection_core)
+
+  ament_add_gtest(test_bev_mosaic test/mosaic/test_bev_mosaic.cpp)
+  target_link_libraries(test_bev_mosaic lie_lane_detection_core)
+
   ament_add_gtest(test_ego_motion_estimator test/motion/test_ego_motion_estimator.cpp)
   target_link_libraries(test_ego_motion_estimator lie_lane_detection_core)
+
+  ament_add_gtest(test_ceres_lane_fitter test/fitting/test_ceres_lane_fitter.cpp)
+  target_link_libraries(test_ceres_lane_fitter lie_lane_detection_core)
+
+  ament_add_gtest(test_coarse_se2_voter test/voting/test_coarse_se2_voter.cpp)
+  target_link_libraries(test_coarse_se2_voter lie_lane_detection_core)
+
+  ament_add_gtest(test_longitudinal_line_filter test/voting/test_longitudinal_line_filter.cpp)
+  target_link_libraries(test_longitudinal_line_filter lie_lane_detection_core)
+
+  ament_add_gtest(test_road_manifold_fitter test/fitting/test_road_manifold_fitter.cpp)
+  target_link_libraries(test_road_manifold_fitter lie_lane_detection_core)
 endif()
 
 ament_package()

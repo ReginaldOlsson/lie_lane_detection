@@ -10,6 +10,7 @@
 #include <opencv2/imgproc.hpp>
 
 #include "lie_lane_detection/common/parallel.hpp"
+#include "lie_lane_detection/voting/sparse_accumulator.hpp"
 
 namespace lie_lane_detection
 {
@@ -142,12 +143,9 @@ std::vector<LaneHypothesis> LieHoughVoter::vote(
   const double vote_thresh = params_.vote_threshold_px;
   const double vote_thresh_sq = vote_thresh * vote_thresh;
 
-  auto merge_accum = [](const std::vector<double> & a, const std::vector<double> & b) {
-      std::vector<double> merged = a;
-      for (size_t i = 0; i < merged.size(); ++i) {
-        merged[i] += b[i];
-      }
-      return merged;
+  auto merge_accum = [](std::vector<double> a, const std::vector<double> & b) {
+      DenseAccumulator::mergeInPlace(a, b);
+      return a;
     };
 
   // Stage A: localized SE(2) voting (TBB parallel_reduce).
