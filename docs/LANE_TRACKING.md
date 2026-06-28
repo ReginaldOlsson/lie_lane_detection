@@ -257,3 +257,41 @@ Your intuition maps cleanly to a standard **predict–correct** tracker:
 4. **Posterior**: Kalman fusion → next prior  
 
 The unknown “scheme for finding potential lanes” is **corridor-constrained stripe search** (v1) or **narrow-bin Hough** (v2). Both reuse existing edge extraction and `xi` geometry; neither requires retraining.
+
+---
+
+## Implementation status
+
+| Component | File | Status |
+|-----------|------|--------|
+| `LaneTracker` | `tracking/lane_tracker.hpp`, `src/tracking/lane_tracker.cpp` | Done |
+| Narrow Hough ROI | `narrowParamsForTracks()` | Done |
+| Corridor edge filter | `filterEdgesInTrackCorridors()` | Done |
+| Video tool `--track` | `lane_detect_video_offline` | Done |
+
+### Highway benchmark (stride 30, main every 3 frames, fixed-camera tuning)
+
+| Mode | Typical latency |
+|------|-----------------|
+| Full detect | ~2–4 s |
+| Stripe-only track | **~5–15 ms** |
+
+Tuning notes (fixed dashcam):
+- `fixed_camera=true`: no CV lateral predict between frames
+- `snap_on_main=true`: replace track state on main-detect frames
+- Stripe: near-field rows only + GN refine + max 5 px lateral delta per frame
+- Tracks clamped to BEV bounds; duplicates pruned
+
+### Visual ego-motion (no CAN)
+
+`EgoMotionEstimator` uses road-region LK optical flow between frames:
+
+- Nudges `ipm_src_points` laterally (`applyIntegratedShiftToIpmRoi`)
+- `LaneTracker::compensateEgoMotion(bev_dx)` before stripe/main update
+
+Wired in `lane_detect_video_offline`, `tracked_lane_detector_node`, and `estimateFrontalHomography(..., ego_motion)`.
+
+```bash
+lane_detect_video_offline --video truck_highway_7m40.mp4 --output results/ \
+  --auto-ipm --track --track-interval 5 --stride 30 --max-frames 60 --edge-only
+```

@@ -8,6 +8,7 @@
 
 #include "lie_lane_detection/pipeline/lane_detection_runner.hpp"
 #include "lie_lane_detection/preprocessing/ipm_transformer.hpp"
+#include "lie_lane_detection/motion/ego_motion_estimator.hpp"
 
 namespace lie_lane_detection
 {
@@ -60,7 +61,164 @@ cv::Point2f pointOnRay(double vx, double vy, double bx, double by, double y_targ
     static_cast<float>(y_target));
 }
 
+bool refineVotePeakCentroid(
+  const std::vector<float> & votes,
+  int vote_w,
+  int vote_h,
+  int peak_x,
+  int peak_y,
+  double & cx,
+  double & cy,
+  float & peak_vote,
+  float & second_vote)
+{
+  const int radius = 3;
+  double sum_w = 0.0;
+  double sum_x = 0.0;
+  double sum_y = 0.0;
+  peak_vote = votes[static_cast<size_t>(peak_y * vote_w + peak_x)];
+  second_vote = 0.0f;
+
+  for (int y = 0; y < vote_h; ++y) {
+    for (int x = 0; x < vote_w; ++x) {
+      const float v = votes[static_cast<size_t>(y * vote_w + x)];
+      if (x == peak_x && y == peak_y) {
+        continue;
+      }
+      if (v > second_vote) {
+        second_vote = v;
+      }
+    }
+  }
+
+  for (int dy = -radius; dy <= radius; ++dy) {
+    for (int dx = -radius; dx <= radius; ++dx) {
+      const int x = peak_x + dx;
+      const int y = peak_y + dy;
+      if (x < 0 || y < 0 || x >= vote_w || y >= vote_h) {
+        continue;
+      }
+      const float v = votes[static_cast<size_t>(y * vote_w + x)];
+      if (v <= 0.0f) {
+        continue;
+      }
+      sum_w += v;
+      sum_x += v * x;
+      sum_y += v * y;
+    }
+  }
+  if (sum_w <= 0.0) {
+    cx = peak_x;
+    cy = peak_y;
+    return false;
+  }
+  cx = sum_x / sum_w;
+  cy = sum_y / sum_w;
+  return true;
+}
+
 }  // namespace
+
+VanishingPointTracker::VanishingPointTracker(VanishingPointTrackerParams params)
+: params_(std::move(params))
+{
+}
+
+void VanishingPointTracker::reset()
+{
+  filtered_ = VanishingPointEstimate{};
+  p_x_ = 100.0;
+  p_y_ = 100.0;
+  init_count_ = 0;
+  initialized_ = false;
+}
+
+bool VanishingPointTracker::isOutlier(const VanishingPointEstimate & measurement) const
+{
+  if (!initialized_ || !measurement.valid) {
+    return false;
+  }
+  const double dx = measurement.x - filtered_.x;
+  const double dy = measurement.y - filtered_.y;
+  if (std::abs(dx) > params_.max_jump_px || std::abs(dy) > params_.max_jump_y_px) {
+    return true;
+  }
+  const double dist = std::hypot(dx, dy);
+  return dist > params_.max_jump_px;
+}
+
+VanishingPointEstimate VanishingPointTracker::update(const VanishingPointEstimate & measurement)
+{
+  VanishingPointEstimate output = measurement;
+  output.rejected_as_outlier = false;
+  output.used_temporal_prior = false;
+
+  if (!measurement.valid) {
+    if (initialized_) {
+      output = filtered_;
+      output.valid = true;
+      output.used_temporal_prior = true;
+      output.confidence = filtered_.confidence * 0.85;
+    }
+    return output;
+  }
+
+  if (!initialized_) {
+    if (!measurement.valid) {
+      return output;
+    }
+    if (init_count_ == 0) {
+      filtered_ = measurement;
+    } else {
+      filtered_.x = 0.5 * (filtered_.x + measurement.x);
+      filtered_.y = 0.5 * (filtered_.y + measurement.y);
+      filtered_.confidence = std::max(filtered_.confidence, measurement.confidence);
+    }
+    ++init_count_;
+    if (init_count_ >= params_.min_init_frames) {
+      initialized_ = true;
+    }
+    output = filtered_;
+    return output;
+  }
+
+  if (measurement.confidence < params_.min_confidence_ratio && isOutlier(measurement)) {
+    output = filtered_;
+    output.valid = true;
+    output.rejected_as_outlier = true;
+    output.used_temporal_prior = true;
+    p_x_ += params_.process_noise_px;
+    p_y_ += params_.process_noise_px;
+    return output;
+  }
+
+  if (isOutlier(measurement)) {
+    // Soft update: pull only partially toward a suspicious measurement.
+    const double blend = 0.15;
+    filtered_.x = (1.0 - blend) * filtered_.x + blend * measurement.x;
+    filtered_.y = (1.0 - blend) * filtered_.y + blend * measurement.y;
+    filtered_.confidence = std::max(filtered_.confidence, measurement.confidence * 0.5);
+    output = filtered_;
+    output.used_temporal_prior = true;
+    return output;
+  }
+
+  const double r = params_.base_measurement_noise_px /
+    std::max(0.2, measurement.confidence);
+  const double kx = p_x_ / (p_x_ + r);
+  const double ky = p_y_ / (p_y_ + r);
+  filtered_.x += kx * (measurement.x - filtered_.x);
+  filtered_.y += ky * (measurement.y - filtered_.y);
+  filtered_.confidence = std::max(
+    measurement.confidence,
+    filtered_.confidence * 0.95);
+  filtered_.valid = true;
+  p_x_ = (1.0 - kx) * p_x_ + params_.process_noise_px;
+  p_y_ = (1.0 - ky) * p_y_ + params_.process_noise_px;
+
+  output = filtered_;
+  return output;
+}
 
 VanishingPointEstimate estimateVanishingPoint(
   const cv::Mat & image_bgr,
@@ -160,10 +318,16 @@ VanishingPointEstimate estimateVanishingPoint(
     return result;
   }
 
-  result.x = static_cast<double>(best_x);
-  result.y = static_cast<double>(best_y);
-  result.confidence = static_cast<double>(best_vote);
-  result.valid = true;
+  double cx = best_x;
+  double cy = best_y;
+  float second_vote = 0.0f;
+  refineVotePeakCentroid(votes, vote_w, vote_h, best_x, best_y, cx, cy, best_vote, second_vote);
+
+  result.x = cx;
+  result.y = cy;
+  const float conf_denom = best_vote + second_vote + 1e-6f;
+  result.confidence = static_cast<double>(best_vote / conf_denom);
+  result.valid = result.confidence >= 0.20;
   return result;
 }
 
@@ -208,7 +372,9 @@ bool configureAutoIpmRoi(
 
 FrontalHomographyResult estimateFrontalHomography(
   const cv::Mat & image_bgr,
-  PipelineParams params)
+  PipelineParams params,
+  VanishingPointTracker * vp_tracker,
+  EgoMotionEstimator * ego_motion)
 {
   FrontalHomographyResult result;
   result.params = params;
@@ -216,7 +382,11 @@ FrontalHomographyResult estimateFrontalHomography(
     return result;
   }
 
-  VanishingPointEstimate vp = estimateVanishingPoint(image_bgr, params);
+  const VanishingPointEstimate raw_vp = estimateVanishingPoint(image_bgr, params);
+  VanishingPointEstimate vp = raw_vp;
+  if (vp_tracker != nullptr) {
+    vp = vp_tracker->update(raw_vp);
+  }
   result.vanishing_point = vp;
   result.used_fallback_roi = !vp.valid;
 
@@ -225,6 +395,10 @@ FrontalHomographyResult estimateFrontalHomography(
   } else {
     setDefaultHighwayIpmRoi(params, image_bgr.cols, image_bgr.rows);
   }
+  if (ego_motion != nullptr) {
+    ego_motion->applyIntegratedShiftToIpmRoi(
+      params, image_bgr.cols, image_bgr.rows);
+  }
   result.params = params;
 
   cv::Mat debug;
@@ -232,8 +406,16 @@ FrontalHomographyResult estimateFrontalHomography(
   if (vp.valid) {
     cv::circle(
       result.debug_roi,
-      cv::Point(static_cast<int>(vp.x), static_cast<int>(vp.y)),
+      cv::Point(static_cast<int>(std::lround(vp.x)), static_cast<int>(std::lround(vp.y))),
       8, cv::Scalar(0, 0, 255), 2);
+    if (vp_tracker != nullptr && raw_vp.valid &&
+      (std::abs(raw_vp.x - vp.x) > 2.0 || std::abs(raw_vp.y - vp.y) > 2.0))
+    {
+      cv::circle(
+        result.debug_roi,
+        cv::Point(static_cast<int>(std::lround(raw_vp.x)), static_cast<int>(std::lround(raw_vp.y))),
+        5, cv::Scalar(255, 128, 0), 1);
+    }
   }
   if (params.ipm_src_points.size() >= 8) {
     std::vector<cv::Point> poly(4);
@@ -264,9 +446,14 @@ cv::Mat warpFrontalAutoIpm(
   const cv::Mat & image_bgr,
   PipelineParams & params,
   VanishingPointEstimate * vp_out,
-  cv::Mat * debug_viz)
+  cv::Mat * debug_viz,
+  VanishingPointTracker * vp_tracker)
 {
-  VanishingPointEstimate vp = estimateVanishingPoint(image_bgr, params);
+  const VanishingPointEstimate raw_vp = estimateVanishingPoint(image_bgr, params);
+  VanishingPointEstimate vp = raw_vp;
+  if (vp_tracker != nullptr) {
+    vp = vp_tracker->update(raw_vp);
+  }
   if (!vp.valid) {
     setDefaultHighwayIpmRoi(params, image_bgr.cols, image_bgr.rows);
     if (vp_out) {

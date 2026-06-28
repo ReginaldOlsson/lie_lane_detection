@@ -45,8 +45,6 @@ LaneDetectionResult LaneDetectionPipeline::detect(
   cv::Mat bev_prepared = prepareBevImage(bev);
   PipelineParams bev_params = params_;
   configureParamsForBev(bev_params, bev_prepared.cols, bev_prepared.rows);
-  cv::imshow("BEV Prepared", bev_prepared);
-  cv::waitKey(1);
   const BevDetectionResult bev_result = detectLanesInBev(bev_prepared, bev_params);
   result.lanes = bev_result.lanes;
   result.merges = bev_result.merges;

@@ -14,8 +14,10 @@
 #include <opencv2/videoio.hpp>
 
 #include "lie_lane_detection/preprocessing/auto_frontal_ipm.hpp"
+#include "lie_lane_detection/motion/ego_motion_estimator.hpp"
 #include "lie_lane_detection/pipeline/lane_detection_runner.hpp"
 #include "lie_lane_detection/pipeline/line_lane_detection_runner.hpp"
+#include "lie_lane_detection/tracking/lane_tracker.hpp"
 #include "lie_lane_detection/visualization/visualization.hpp"
 
 namespace fs = std::filesystem;
@@ -66,15 +68,26 @@ static cv::Mat prepareInput(
   const cv::Mat & frame,
   InputMode mode,
   lie_lane_detection::PipelineParams & params,
-  lie_lane_detection::FrontalHomographyResult * hg_out = nullptr)
+  lie_lane_detection::FrontalHomographyResult * hg_out = nullptr,
+  lie_lane_detection::VanishingPointTracker * vp_tracker = nullptr,
+  lie_lane_detection::EgoMotionEstimator * ego_motion = nullptr,
+  lie_lane_detection::EgoMotionEstimate * ego_out = nullptr)
 {
   if (mode == InputMode::FRONTAL_RAW) {
     lie_lane_detection::configureParamsForFrontalImage(params, frame.cols, frame.rows);
     return lie_lane_detection::prepareFrontalImage(frame);
   }
 
+  if (ego_motion != nullptr) {
+    const auto ego = ego_motion->update(frame);
+    if (ego_out) {
+      *ego_out = ego;
+    }
+  }
+
   lie_lane_detection::FrontalHomographyResult hg =
-    lie_lane_detection::estimateFrontalHomography(frame, params);
+    lie_lane_detection::estimateFrontalHomography(
+      frame, params, vp_tracker, ego_motion);
   if (hg_out) {
     *hg_out = hg;
   }
@@ -91,6 +104,8 @@ int main(int argc, char ** argv)
   InputMode mode = InputMode::AUTO_IPM;
   bool both = true;
   bool save_video = true;
+  bool use_track = false;
+  int track_main_interval = 5;
   int stride = 30;
   int max_frames = 20;
 
@@ -108,6 +123,10 @@ int main(int argc, char ** argv)
       mode = InputMode::AUTO_IPM;
     } else if (arg == "--frontal-raw") {
       mode = InputMode::FRONTAL_RAW;
+    } else if (arg == "--track") {
+      use_track = true;
+    } else if (arg == "--track-interval" && i + 1 < argc) {
+      track_main_interval = std::stoi(argv[++i]);
     } else if (arg == "--both") {
       both = true;
     } else if (arg == "--edge-only") {
@@ -119,6 +138,8 @@ int main(int argc, char ** argv)
         "Usage: lane_detect_video_offline --video PATH --output DIR [options]\n"
         "  --auto-ipm       Estimate VP + homography per frame, detect on BEV (default)\n"
         "  --frontal-raw    Detect on raw image (experimental, poor quality)\n"
+        "  --track          Fast stripe tracker + periodic full detect (edge pipeline)\n"
+        "  --track-interval N  Full detect every N processed frames (default 5)\n"
         "  --both           Edge + line pipelines (default)\n"
         "  --stride N       Every Nth frame (default 30)\n"
         "  --max-frames N   Max frames (default 20)\n";
@@ -155,7 +176,11 @@ int main(int argc, char ** argv)
   std::cout << "Video: " << video_path << " " << width << "x" << height
             << " @" << fps << " fps, ~" << total_frames << " frames\n";
   std::cout << "Mode: " << mode_str << ", stride=" << stride
-            << ", max_frames=" << max_frames << "\n";
+            << ", max_frames=" << max_frames;
+  if (use_track) {
+    std::cout << ", track=ON (main every " << track_main_interval << " frames)";
+  }
+  std::cout << "\n";
 
   cv::VideoWriter edge_writer;
   cv::VideoWriter line_writer;
@@ -166,21 +191,39 @@ int main(int argc, char ** argv)
 
   std::ofstream report(output_dir / "video_report.txt");
   report << "Video lane detection\n";
-  report << "Mode: " << mode_str << "\n";
+  report << "Mode: " << mode_str;
+  if (use_track) {
+    report << " + track(main_interval=" << track_main_interval << ")";
+  }
+  report << "\n";
   report << "Video: " << video_path << "\n\n";
   report << std::left
          << std::setw(8) << "Frame"
          << std::setw(8) << "E_lanes"
          << std::setw(8) << "L_lanes"
          << std::setw(10) << "E_ms"
-         << std::setw(10) << "L_ms"
-         << "Notes\n";
+         << std::setw(10) << "L_ms";
+  if (use_track) {
+    report << std::setw(8) << "Main?";
+  }
+  report << "Notes\n";
 
   auto params = defaultParams();
+  lie_lane_detection::VanishingPointTracker vp_tracker;
+  lie_lane_detection::EgoMotionEstimator ego_estimator;
+  lie_lane_detection::LaneTracker lane_tracker;
+  if (use_track) {
+    lie_lane_detection::LaneTrackerParams tp;
+    tp.main_detect_interval = track_main_interval;
+    lane_tracker.setParams(tp);
+  }
   int frame_idx = 0;
   int processed = 0;
   double sum_edge_ms = 0.0;
   double sum_line_ms = 0.0;
+  double sum_stripe_ms = 0.0;
+  int main_count = 0;
+  int stripe_count = 0;
 
   cv::Mat frame;
   while (processed < max_frames && cap.read(frame)) {
@@ -190,7 +233,9 @@ int main(int argc, char ** argv)
     }
 
     lie_lane_detection::FrontalHomographyResult hg;
-    cv::Mat prepared = prepareInput(frame, mode, params, &hg);
+    lie_lane_detection::EgoMotionEstimate ego;
+    cv::Mat prepared = prepareInput(
+      frame, mode, params, &hg, &vp_tracker, &ego_estimator, &ego);
 
     if (processed == 0 && mode == InputMode::AUTO_IPM && !prepared.empty()) {
       bev_writer_size = prepared.size();
@@ -227,7 +272,30 @@ int main(int argc, char ** argv)
       continue;
     }
 
-    const auto edge_result = lie_lane_detection::detectLanesInBev(prepared, params);
+    lie_lane_detection::BevDetectionResult edge_result;
+    lie_lane_detection::TrackedFrameResult tracked_result;
+    if (use_track) {
+      if (ego.valid) {
+        const double bev_dx = lie_lane_detection::EgoMotionEstimator::imageDeltaToBevLateral(
+          ego.delta_image_x, hg.params, prepared.cols);
+        lane_tracker.compensateEgoMotion(bev_dx);
+      }
+      tracked_result = lane_tracker.processFrame(prepared, params, frame_idx, fps);
+      edge_result.lanes = tracked_result.lanes;
+      edge_result.merges = tracked_result.merges;
+      edge_result.overlay = tracked_result.overlay;
+      edge_result.edges = tracked_result.edges;
+      edge_result.elapsed_ms = tracked_result.total_ms;
+      if (tracked_result.ran_main_detector) {
+        ++main_count;
+      }
+      if (tracked_result.ran_stripe_update) {
+        ++stripe_count;
+        sum_stripe_ms += tracked_result.stripe_ms;
+      }
+    } else {
+      edge_result = lie_lane_detection::detectLanesInBev(prepared, params);
+    }
     lie_lane_detection::BevDetectionResult line_result;
     if (both) {
       line_result = lie_lane_detection::detectLanesInBevFromLines(prepared, params);
@@ -276,11 +344,18 @@ int main(int argc, char ** argv)
            << std::setw(8) << edge_result.lanes.size()
            << std::setw(8) << (both ? line_result.lanes.size() : 0)
            << std::setw(10) << std::fixed << std::setprecision(1) << edge_result.elapsed_ms
-           << std::setw(10) << (both ? line_result.elapsed_ms : 0.0)
-           << laneSummary(edge_result.lanes) << "\n";
+           << std::setw(10) << (both ? line_result.elapsed_ms : 0.0);
+    if (use_track) {
+      report << std::setw(8) << (tracked_result.ran_main_detector ? "main" : "stripe");
+    }
+    report << laneSummary(edge_result.lanes) << "\n";
 
     std::cout << "frame " << frame_idx << ": edge " << edge_result.lanes.size()
               << " / " << edge_result.elapsed_ms << " ms";
+    if (use_track) {
+      std::cout << " [" << (tracked_result.ran_main_detector ? "main" : "stripe")
+                << ", tracks=" << tracked_result.track_count << "]";
+    }
     if (both) {
       std::cout << " | line " << line_result.lanes.size()
                 << " / " << line_result.elapsed_ms << " ms";
@@ -288,6 +363,18 @@ int main(int argc, char ** argv)
     if (mode == InputMode::AUTO_IPM && hg.vanishing_point.valid) {
       std::cout << " | VP(" << std::fixed << std::setprecision(0)
                 << hg.vanishing_point.x << "," << hg.vanishing_point.y << ")";
+      if (hg.vanishing_point.used_temporal_prior) {
+        std::cout << "[filt]";
+      }
+      if (hg.vanishing_point.rejected_as_outlier) {
+        std::cout << "[rej]";
+      }
+    }
+    if (ego.valid) {
+      const double bev_dx = lie_lane_detection::EgoMotionEstimator::imageDeltaToBevLateral(
+        ego.delta_image_x, hg.params, prepared.cols);
+      std::cout << " | ego_dx=" << std::fixed << std::setprecision(1)
+                << ego.delta_image_x << " bev=" << bev_dx;
     }
     std::cout << "\n";
 
@@ -300,6 +387,13 @@ int main(int argc, char ** argv)
   if (processed > 0) {
     report << "\nMean edge ms: " << (sum_edge_ms / processed) << "\n";
     report << "Mean line ms: " << (sum_line_ms / processed) << "\n";
+    if (use_track) {
+      report << "Main detect frames: " << main_count << "\n";
+      report << "Stripe-only frames: " << stripe_count << "\n";
+      if (stripe_count > 0) {
+        report << "Mean stripe ms: " << (sum_stripe_ms / stripe_count) << "\n";
+      }
+    }
   }
   report.close();
 

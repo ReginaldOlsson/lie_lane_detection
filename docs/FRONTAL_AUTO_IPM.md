@@ -14,6 +14,24 @@ This module estimates IPM parameters automatically from a single frontal frame (
 
 If VP estimation fails (too few lines, low confidence), the code falls back to `setDefaultHighwayIpmRoi()`.
 
+### Fixed-camera temporal smoothing
+
+For video / online use, pass a persistent `VanishingPointTracker` to `estimateFrontalHomography()`.
+The tracker assumes the dashcam is rigidly mounted, so VP should not jump frame-to-frame:
+
+- Per-frame VP: Hough intersections + vote-histogram **centroid** (sub-pixel)
+- Confidence: peak / (peak + second_peak)
+- Temporal filter: 2D Kalman with low process noise
+- Outlier gate: reject jumps > ~30 px (configurable); hold filtered VP on bad frames
+- Debug: red circle = filtered VP, orange = raw frame VP when they differ
+
+```cpp
+VanishingPointTracker vp_tracker;
+for (each frame) {
+  auto hg = estimateFrontalHomography(frame, params, &vp_tracker);
+}
+```
+
 ## API
 
 | Function | Purpose |

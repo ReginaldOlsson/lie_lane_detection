@@ -46,6 +46,8 @@ set(CORE_SOURCES
   src/pipeline/lane_detection_pipeline.cpp
   src/pipeline/line_lane_detection_runner.cpp
   src/pipeline/line_lane_detection_pipeline.cpp
+  src/tracking/lane_tracker.cpp
+  src/motion/ego_motion_estimator.cpp
   src/visualization/visualization.cpp
   src/testing/synthetic_bev_generator.cpp
 )
@@ -94,6 +96,26 @@ ament_target_dependencies(line_lane_detector_node
   image_transport
 )
 
+add_executable(video_image_publisher_node src/nodes/video_image_publisher_node.cpp)
+target_link_libraries(video_image_publisher_node ${OpenCV_LIBS})
+ament_target_dependencies(video_image_publisher_node
+  rclcpp
+  sensor_msgs
+  cv_bridge
+)
+
+add_executable(tracked_lane_detector_node src/nodes/tracked_lane_detector_node.cpp)
+target_link_libraries(tracked_lane_detector_node lie_lane_detection_core)
+ament_target_dependencies(tracked_lane_detector_node
+  rclcpp
+  sensor_msgs
+  geometry_msgs
+  visualization_msgs
+  std_msgs
+  cv_bridge
+  image_transport
+)
+
 # --- Offline tools ---
 add_executable(lane_detect_offline src/tools/lane_detect_offline.cpp)
 target_link_libraries(lane_detect_offline lie_lane_detection_core ${OpenCV_LIBS})
@@ -114,6 +136,8 @@ install(TARGETS
   lie_lane_detection_core
   lane_detector_node
   line_lane_detector_node
+  video_image_publisher_node
+  tracked_lane_detector_node
   lane_detect_offline
   lane_detect_video_offline
   estimate_frontal_homography
@@ -153,6 +177,15 @@ if(BUILD_TESTING)
 
   ament_add_gtest(test_merge_topology test/extraction/test_merge_topology.cpp)
   target_link_libraries(test_merge_topology lie_lane_detection_core)
+
+  ament_add_gtest(test_lane_tracker test/tracking/test_lane_tracker.cpp)
+  target_link_libraries(test_lane_tracker lie_lane_detection_core)
+
+  ament_add_gtest(test_vanishing_point_tracker test/preprocessing/test_vanishing_point_tracker.cpp)
+  target_link_libraries(test_vanishing_point_tracker lie_lane_detection_core)
+
+  ament_add_gtest(test_ego_motion_estimator test/motion/test_ego_motion_estimator.cpp)
+  target_link_libraries(test_ego_motion_estimator lie_lane_detection_core)
 endif()
 
 ament_package()

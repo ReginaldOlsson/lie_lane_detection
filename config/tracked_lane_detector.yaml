@@ -1,0 +1,41 @@
+tracked_lane_detector_node:
+  ros__parameters:
+    image_topic: "/camera/image_raw"
+    frame_id: "camera_front"
+    track_main_interval: 3
+    publish_raw: true
+    expected_fps: 10.0
+
+    # Lane tracker tuning (fixed dashcam)
+    track_max_tracks: 6
+    track_min_spawn_inlier: 0.45
+    track_max_stripe_delta_px: 5.0
+
+    use_steerable_filter: true
+    connect_dashed_edges: true
+    edge_anisotropic_blur: true
+    edge_thin: true
+    edge_low_threshold: 25.0
+    edge_high_threshold: 70.0
+    top_k_peaks: 10
+    max_lane_hypotheses: 10
+    use_iterative_peeling: true
+    vote_threshold_px: 8.0
+    inlier_threshold_px: 10.0
+    min_inlier_ratio: 0.30
+    min_inliers: 15
+    kappa_min: -0.28
+    kappa_max: 0.28
+    sigma_min: -0.55
+    sigma_max: 0.55
+    hough_hypothesis_merge_ratio: 0.85
+    min_inlier_y_coverage: 0.30
+
+video_image_publisher:
+  ros__parameters:
+    video_path: "/home/mosal/Downloads/truck_videos/truck_highway_7m40.webm"
+    image_topic: "/camera/image_raw"
+    frame_id: "camera_front"
+    publish_rate_hz: 10.0
+    loop: true
+    target_width: 640
