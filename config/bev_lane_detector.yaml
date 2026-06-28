@@ -33,7 +33,7 @@ bev_lane_detector_node:
     sigma_min: -0.55
     sigma_max: 0.55
 
-    bev_bottom_exclude_px: 250.0
+    bev_bottom_exclude_px: 200.0
 
     use_longitudinal_line_filter: true
     longitudinal_max_deviation_rad: 0.52

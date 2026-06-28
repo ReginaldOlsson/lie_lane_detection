@@ -61,6 +61,7 @@ set(CORE_SOURCES
   src/tracking/lane_tracker.cpp
   src/motion/ego_motion_estimator.cpp
   src/mosaic/bev_mosaic_accumulator.cpp
+  src/mosaic/bev_registration.cpp
   src/nodes/node_params.cpp
   src/visualization/visualization.cpp
   src/testing/synthetic_bev_generator.cpp
@@ -178,6 +179,9 @@ target_link_libraries(lane_detect_video_offline lie_lane_detection_core ${OpenCV
 add_executable(estimate_frontal_homography src/tools/estimate_frontal_homography.cpp)
 target_link_libraries(estimate_frontal_homography lie_lane_detection_core ${OpenCV_LIBS})
 
+add_executable(test_bev_mosaic_align src/tools/test_bev_mosaic_align.cpp)
+target_link_libraries(test_bev_mosaic_align lie_lane_detection_core ${OpenCV_LIBS})
+
 install(TARGETS
   lie_lane_detection_core
   lane_detector_node
@@ -190,6 +194,7 @@ install(TARGETS
   lane_detect_offline
   lane_detect_video_offline
   estimate_frontal_homography
+  test_bev_mosaic_align
   compare_lane_detection
   generate_test_images
   ARCHIVE DESTINATION lib

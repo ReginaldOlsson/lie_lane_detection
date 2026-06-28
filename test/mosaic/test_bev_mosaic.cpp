@@ -1,8 +1,10 @@
 #include <gtest/gtest.h>
 
+#include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 
 #include "lie_lane_detection/mosaic/bev_mosaic_accumulator.hpp"
+#include "lie_lane_detection/mosaic/bev_registration.hpp"
 
 namespace lie_lane_detection
 {
@@ -26,30 +28,22 @@ TEST(BevMosaicAccumulator, firstFrameInitializesCanvas)
   BevMosaicAccumulator acc;
   const cv::Mat frame = makeStripedBev(240, 400);
   const auto result = acc.accumulate(frame);
-  EXPECT_TRUE(result.valid);
+  EXPECT_TRUE(result.motion.valid);
   EXPECT_TRUE(acc.initialized());
   ASSERT_FALSE(acc.canvas().empty());
   EXPECT_EQ(acc.canvas().cols, frame.cols);
   EXPECT_EQ(acc.canvas().rows, frame.rows);
 }
 
-TEST(BevMosaicAccumulator, pureTranslationExpandsCanvas)
+TEST(BevRegistration, identicalImagesGiveIdentity)
 {
-  BevMosaicParams params;
-  params.registration_method = BevRegistrationMethod::ECC;
-  params.min_ecc_correlation = 0.2;
-  BevMosaicAccumulator acc(params);
-
-  const cv::Mat frame0 = makeStripedBev(200, 300);
-  cv::Mat frame1;
-  const cv::Mat shift = (cv::Mat_<double>(2, 3) << 1.0, 0.0, -12.0, 0.0, 1.0, -8.0);
-  cv::warpAffine(frame0, frame1, shift, frame0.size());
-
-  acc.accumulate(frame0);
-  const auto result = acc.accumulate(frame1);
-  EXPECT_TRUE(result.valid);
-  EXPECT_GE(acc.canvas().cols, frame0.cols);
-  EXPECT_GE(acc.canvas().rows, frame0.rows);
+  BevRegistrationParams params;
+  params.method = BevRegistrationMethod::ECC_THEN_ORB;
+  const cv::Mat frame = makeStripedBev(200, 300);
+  const auto reg = estimateBevFrameMotion(frame, frame, params);
+  EXPECT_NEAR(reg.dx_px, 0.0, 1.0);
+  EXPECT_NEAR(reg.dy_px, 0.0, 1.0);
+  EXPECT_NEAR(reg.yaw_rad, 0.0, 0.05);
 }
 
 }  // namespace

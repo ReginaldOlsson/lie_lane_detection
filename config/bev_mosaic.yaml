@@ -4,19 +4,25 @@ bev_mosaic_node:
     frame_id: "bev_mosaic"
     canvas_topic: "/ipm/mosaic/canvas"
     aligned_topic: "/ipm/mosaic/aligned"
+    blend_topic: "/ipm/mosaic/blend"
+    diff_topic: "/ipm/mosaic/abs_diff"
     pose_topic: "/ipm/mosaic/global_pose"
     stats_topic: "/ipm/mosaic/stats"
     reset_on_first_frame: false
 
-    # registration_method: auto | ecc | features
     registration_method: "auto"
-    canvas_margin_px: 400
-    min_ecc_correlation: 0.35
-    ecc_max_iterations: 50
+    max_stored_frames: 3
+    min_ecc_correlation: 0.25
+    ecc_max_iterations: 80
     ecc_epsilon: 0.00001
-    orb_features: 1200
+    orb_features: 1500
     feature_match_ratio: 0.75
-    feature_min_inliers: 12
-    max_step_translation_px: 80.0
-    max_step_rotation_rad: 0.12
+    feature_min_inliers: 10
+    max_step_translation_px: 200.0
+    max_step_rotation_rad: 0.15
+    mask_bottom_exclude_ratio: 0.15
+    mask_gray_threshold: 25
     use_constant_velocity_fallback: true
+    use_coarse_translation_init: true
+    coarse_max_dy_px: 120
+    coarse_dy_step_px: 2

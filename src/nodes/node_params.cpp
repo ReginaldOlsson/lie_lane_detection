@@ -19,6 +19,7 @@ PipelineParams loadIpmParams(rclcpp::Node & node)
   p.ipm_top_y_offset_ratio = node.declare_parameter<double>("ipm_top_y_offset_ratio", 0.12);
   p.ipm_top_y_min_ratio = node.declare_parameter<double>("ipm_top_y_min_ratio", 0.32);
   p.ipm_top_y_max_ratio = node.declare_parameter<double>("ipm_top_y_max_ratio", 0.72);
+  p.bev_bottom_exclude_px = node.declare_parameter<double>("bev_bottom_exclude_px", 200.0);
   return p;
 }
 

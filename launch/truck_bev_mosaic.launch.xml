@@ -16,7 +16,9 @@
   <arg name="target_width" default="640"/>
   <arg name="bev_width_m" default="20.0"/>
   <arg name="bev_length_m" default="60.0"/>
+  <arg name="bev_bottom_exclude_px" default="250.0" description="Mask bottom BEV rows on /ipm/bev (truck body)"/>
   <arg name="registration_method" default="auto" description="auto | ecc | features"/>
+  <arg name="max_stored_frames" default="3" description="Sliding window size for mosaic canvas"/>
 
   <group if="$(var use_video_publisher)">
     <node pkg="lie_lane_detection" exec="video_image_publisher_node" name="video_image_publisher" output="screen">
@@ -35,12 +37,14 @@
     <param name="bev_topic" value="$(var bev_topic)"/>
     <param name="bev_width_m" value="$(var bev_width_m)"/>
     <param name="bev_length_m" value="$(var bev_length_m)"/>
+    <param name="bev_bottom_exclude_px" value="$(var bev_bottom_exclude_px)"/>
   </node>
 
   <node pkg="lie_lane_detection" exec="bev_mosaic_node" name="bev_mosaic_node" output="screen">
     <param from="$(find-pkg-share lie_lane_detection)/config/bev_mosaic.yaml"/>
     <param name="bev_topic" value="$(var bev_topic)"/>
     <param name="registration_method" value="$(var registration_method)"/>
+    <param name="max_stored_frames" value="$(var max_stored_frames)"/>
   </node>
 
   <group if="$(var use_lane_detection)">

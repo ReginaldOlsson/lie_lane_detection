@@ -9,8 +9,8 @@
 
 #include "lie_lane_detection/motion/ego_motion_estimator.hpp"
 #include "lie_lane_detection/nodes/node_params.hpp"
+#include "lie_lane_detection/pipeline/detection_common.hpp"
 #include "lie_lane_detection/preprocessing/auto_frontal_ipm.hpp"
-#include "lie_lane_detection/pipeline/lane_detection_runner.hpp"
 
 namespace lie_lane_detection
 {
@@ -42,9 +42,10 @@ public:
 
     RCLCPP_INFO(
       get_logger(),
-      "frontal_ipm_node: %s -> %s (%.0fx%.0f m @ %.3f m/px)",
+      "frontal_ipm_node: %s -> %s (%.0fx%.0f m @ %.3f m/px, bottom_exclude=%.0f px)",
       image_topic.c_str(), bev_topic.c_str(),
-      params_.bev_width_m, params_.bev_length_m, params_.bev_resolution_m_per_px);
+      params_.bev_width_m, params_.bev_length_m, params_.bev_resolution_m_per_px,
+      params_.bev_bottom_exclude_px);
     RCLCPP_INFO(get_logger(), "  debug: %s, homography: %s", roi_topic.c_str(), homography_topic.c_str());
   }
 
@@ -103,7 +104,10 @@ private:
       return;
     }
 
-    publishCvImage(bev_pub_, hg.bev, msg->header);
+    cv::Mat bev_out = hg.bev.clone();
+    maskBevBottomExclude(bev_out, params_);
+
+    publishCvImage(bev_pub_, bev_out, msg->header);
     publishCvImage(roi_pub_, hg.debug_roi, msg->header);
     publishHomography(hg.H_img2bev, msg->header);
 

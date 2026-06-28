@@ -14,7 +14,7 @@
   <arg name="target_width" default="640"/>
   <arg name="bev_width_m" default="20.0"/>
   <arg name="bev_length_m" default="60.0"/>
-  <arg name="bev_bottom_exclude_px" default="250.0"/>
+  <arg name="bev_bottom_exclude_px" default="200.0"/>
   <arg name="max_output_lanes" default="0"/>
 
   <!-- <group if="$(var use_video_publisher)">
@@ -34,6 +34,7 @@
     <param name="bev_topic" value="$(var bev_topic)"/>
     <param name="bev_width_m" value="$(var bev_width_m)"/>
     <param name="bev_length_m" value="$(var bev_length_m)"/>
+    <param name="bev_bottom_exclude_px" value="$(var bev_bottom_exclude_px)"/>
   </node> -->
 
   <node pkg="lie_lane_detection" exec="bev_lane_detector_node" name="bev_lane_detector_node" output="screen">

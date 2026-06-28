@@ -1,4 +1,5 @@
 #include <chrono>
+#include <cstdint>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -22,28 +23,40 @@ BevRegistrationMethod parseRegistrationMethod(const std::string & value)
   if (value == "ecc") {
     return BevRegistrationMethod::ECC;
   }
-  if (value == "features") {
-    return BevRegistrationMethod::FEATURES;
+  if (value == "orb" || value == "features") {
+    return BevRegistrationMethod::ORB;
   }
-  return BevRegistrationMethod::AUTO;
+  return BevRegistrationMethod::ECC_THEN_ORB;
 }
 
 BevMosaicParams loadMosaicParams(rclcpp::Node & node)
 {
   BevMosaicParams p;
-  p.canvas_margin_px = node.declare_parameter<int>("canvas_margin_px", 400);
-  p.min_ecc_correlation = node.declare_parameter<double>("min_ecc_correlation", 0.35);
-  p.ecc_max_iterations = node.declare_parameter<int>("ecc_max_iterations", 50);
-  p.ecc_epsilon = node.declare_parameter<double>("ecc_epsilon", 1e-5);
-  p.orb_features = node.declare_parameter<int>("orb_features", 1200);
-  p.feature_match_ratio = node.declare_parameter<double>("feature_match_ratio", 0.75);
-  p.feature_min_inliers = node.declare_parameter<int>("feature_min_inliers", 12);
-  p.max_step_translation_px = node.declare_parameter<double>("max_step_translation_px", 80.0);
-  p.max_step_rotation_rad = node.declare_parameter<double>("max_step_rotation_rad", 0.12);
+  p.max_stored_frames = std::max(1, static_cast<int>(node.declare_parameter<int64_t>("max_stored_frames", 3)));
   p.use_constant_velocity_fallback =
     node.declare_parameter<bool>("use_constant_velocity_fallback", true);
-  p.registration_method =
+
+  p.registration.method =
     parseRegistrationMethod(node.declare_parameter<std::string>("registration_method", "auto"));
+  p.registration.min_ecc_correlation =
+    node.declare_parameter<double>("min_ecc_correlation", 0.25);
+  p.registration.ecc_max_iterations = node.declare_parameter<int>("ecc_max_iterations", 80);
+  p.registration.ecc_epsilon = node.declare_parameter<double>("ecc_epsilon", 1e-5);
+  p.registration.orb_max_features = node.declare_parameter<int>("orb_features", 1500);
+  p.registration.orb_match_ratio = node.declare_parameter<double>("feature_match_ratio", 0.75);
+  p.registration.orb_min_inliers = node.declare_parameter<int>("feature_min_inliers", 10);
+  p.registration.max_step_translation_px =
+    node.declare_parameter<double>("max_step_translation_px", 200.0);
+  p.registration.max_step_rotation_rad =
+    node.declare_parameter<double>("max_step_rotation_rad", 0.15);
+  p.registration.mask_bottom_exclude_ratio =
+    node.declare_parameter<double>("mask_bottom_exclude_ratio", 0.12);
+  p.registration.mask_gray_threshold =
+    static_cast<uchar>(node.declare_parameter<int>("mask_gray_threshold", 25));
+  p.registration.use_coarse_translation_init =
+    node.declare_parameter<bool>("use_coarse_translation_init", true);
+  p.registration.coarse_max_dy_px = node.declare_parameter<int>("coarse_max_dy_px", 120);
+  p.registration.coarse_dy_step_px = node.declare_parameter<int>("coarse_dy_step_px", 2);
   return p;
 }
 
@@ -63,6 +76,10 @@ public:
       declare_parameter<std::string>("canvas_topic", "/ipm/mosaic/canvas");
     const std::string aligned_topic =
       declare_parameter<std::string>("aligned_topic", "/ipm/mosaic/aligned");
+    const std::string blend_topic =
+      declare_parameter<std::string>("blend_topic", "/ipm/mosaic/blend");
+    const std::string diff_topic =
+      declare_parameter<std::string>("diff_topic", "/ipm/mosaic/abs_diff");
     const std::string pose_topic =
       declare_parameter<std::string>("pose_topic", "/ipm/mosaic/global_pose");
     const std::string stats_topic =
@@ -71,6 +88,8 @@ public:
 
     canvas_pub_ = image_transport::create_publisher(this, canvas_topic);
     aligned_pub_ = image_transport::create_publisher(this, aligned_topic);
+    blend_pub_ = image_transport::create_publisher(this, blend_topic);
+    diff_pub_ = image_transport::create_publisher(this, diff_topic);
     pose_pub_ = create_publisher<std_msgs::msg::Float64MultiArray>(pose_topic, 10);
     stats_pub_ = create_publisher<std_msgs::msg::String>(stats_topic, 10);
 
@@ -82,8 +101,9 @@ public:
     RCLCPP_INFO(get_logger(), "bev_mosaic_node on %s", bev_topic.c_str());
     RCLCPP_INFO(
       get_logger(),
-      "  publish: %s, %s, %s",
-      canvas_topic.c_str(), aligned_topic.c_str(), pose_topic.c_str());
+      "  publish: %s, %s, %s, %s, %s",
+      canvas_topic.c_str(), aligned_topic.c_str(), blend_topic.c_str(),
+      diff_topic.c_str(), pose_topic.c_str());
   }
 
 private:
@@ -126,14 +146,19 @@ private:
     pose_pub_->publish(msg);
   }
 
-  static std::string formatStats(const BevRegistrationResult & reg, double ms)
+  static std::string formatStats(const BevMosaicFrameResult & frame, double ms)
   {
+    const auto & reg = frame.motion;
     std::ostringstream oss;
     oss << "valid=" << (reg.valid ? 1 : 0)
-        << " ecc=" << (reg.used_ecc ? 1 : 0)
-        << " features=" << (reg.used_features ? 1 : 0)
-        << " fallback=" << (reg.used_fallback ? 1 : 0)
+        << " method=" << reg.method_used
+        << " fallback=" << (frame.used_fallback ? 1 : 0)
+        << " stored=" << frame.stored_frames
         << " corr=" << reg.correlation
+        << " inliers=" << reg.inlier_count
+        << " dx=" << reg.dx_px
+        << " dy=" << reg.dy_px
+        << " yaw_deg=" << (reg.yaw_rad * 180.0 / CV_PI)
         << " ms=" << ms;
     return oss.str();
   }
@@ -153,7 +178,7 @@ private:
     }
 
     const auto t0 = std::chrono::steady_clock::now();
-    const BevRegistrationResult reg = accumulator_.accumulate(cv_ptr->image);
+    const BevMosaicFrameResult frame = accumulator_.accumulate(cv_ptr->image);
     const auto t1 = std::chrono::steady_clock::now();
     const double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
@@ -161,16 +186,18 @@ private:
     header.frame_id = frame_id_;
 
     publishCvImage(canvas_pub_, accumulator_.canvas(), header);
-    publishCvImage(aligned_pub_, accumulator_.lastAlignedFrame(), header);
-    publishPose(reg.global_affine_2x3);
+    publishCvImage(aligned_pub_, frame.motion.valid ? accumulator_.lastAlignedFrame() : cv::Mat(), header);
+    publishCvImage(blend_pub_, frame.blend_with_previous, header);
+    publishCvImage(diff_pub_, frame.abs_diff_with_previous, header);
+    publishPose(frame.global_affine_2x3);
 
     std_msgs::msg::String stats;
-    stats.data = formatStats(reg, ms);
+    stats.data = formatStats(frame, ms);
     stats_pub_->publish(stats);
 
     ++frame_index_;
-    RCLCPP_INFO_THROTTLE(
-      get_logger(), *get_clock(), 1000,
+    RCLCPP_INFO(
+      get_logger(),
       "MOSAIC frame=%d | %s",
       frame_index_, stats.data.c_str());
   }
@@ -184,6 +211,8 @@ private:
   image_transport::Subscriber bev_sub_;
   image_transport::Publisher canvas_pub_;
   image_transport::Publisher aligned_pub_;
+  image_transport::Publisher blend_pub_;
+  image_transport::Publisher diff_pub_;
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr pose_pub_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr stats_pub_;
 };

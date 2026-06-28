@@ -17,3 +17,6 @@ frontal_ipm_node:
     ipm_top_y_offset_ratio: 0.12
     ipm_top_y_min_ratio: 0.32
     ipm_top_y_max_ratio: 0.72
+
+    # Mask static truck body at bottom of published /ipm/bev
+    bev_bottom_exclude_px: 200.0
