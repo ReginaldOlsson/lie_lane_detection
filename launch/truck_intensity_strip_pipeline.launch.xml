@@ -1,24 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Temporal BEV orthomosaic: video (optional) -> IPM -> mosaic accumulation.
+  IPM + intensity-strip lane detection pipeline.
 
   Usage:
-    ros2 launch lie_lane_detection truck_bev_mosaic.launch.xml use_video_publisher:=true
-    ros2 launch lie_lane_detection truck_bev_mosaic.launch.xml use_lane_detection:=true
+    ros2 launch lie_lane_detection truck_intensity_strip_pipeline.launch.xml use_video_publisher:=true
 -->
 <launch>
   <arg name="use_video_publisher" default="true"/>
-  <arg name="use_lane_detection" default="false" description="Also run bev_lane_detector_node on /ipm/bev"/>
   <arg name="video_path" default="/home/mosal/autoware/lane_detection_test_images/truck_frontal_video/truck_highway_7m40.mp4"/>
   <arg name="image_topic" default="/camera/image_raw"/>
   <arg name="bev_topic" default="/ipm/bev"/>
+  <arg name="image_topic" default="/camera/image_raw"/>
+  <arg name="frontal_overlay_topic" default="/camera/image_raw/overlay"/>
   <arg name="publish_rate_hz" default="10.0"/>
   <arg name="target_width" default="640"/>
   <arg name="bev_width_m" default="20.0"/>
   <arg name="bev_length_m" default="60.0"/>
-  <arg name="bev_bottom_exclude_px" default="250.0" description="Mask bottom BEV rows on /ipm/bev (truck body)"/>
-  <arg name="registration_method" default="orb" description="orb | orb_then_ecc | ecc | ecc_then_orb | auto"/>
-  <arg name="max_stored_frames" default="2" description="Sliding window size for mosaic canvas"/>
+  <arg name="bev_bottom_exclude_px" default="200.0"/>
+  <arg name="num_horizontal_strips" default="12"/>
 
   <group if="$(var use_video_publisher)">
     <node pkg="lie_lane_detection" exec="video_image_publisher_node" name="video_image_publisher" output="screen">
@@ -40,17 +39,12 @@
     <param name="bev_bottom_exclude_px" value="$(var bev_bottom_exclude_px)"/>
   </node>
 
-  <node pkg="lie_lane_detection" exec="bev_mosaic_node" name="bev_mosaic_node" output="screen">
-    <param from="$(find-pkg-share lie_lane_detection)/config/bev_mosaic.yaml"/>
+  <node pkg="lie_lane_detection" exec="intensity_strip_lane_detector_node" name="intensity_strip_lane_detector_node" output="screen">
+    <param from="$(find-pkg-share lie_lane_detection)/config/intensity_strip_lane_detector.yaml"/>
     <param name="bev_topic" value="$(var bev_topic)"/>
-    <param name="registration_method" value="$(var registration_method)"/>
-    <param name="max_stored_frames" value="$(var max_stored_frames)"/>
+    <param name="image_topic" value="$(var image_topic)"/>
+    <param name="frontal_overlay_topic" value="$(var frontal_overlay_topic)"/>
+    <param name="bev_bottom_exclude_px" value="$(var bev_bottom_exclude_px)"/>
+    <param name="num_horizontal_strips" value="$(var num_horizontal_strips)"/>
   </node>
-
-  <group if="$(var use_lane_detection)">
-    <node pkg="lie_lane_detection" exec="bev_lane_detector_node" name="bev_lane_detector_node" output="screen">
-      <param from="$(find-pkg-share lie_lane_detection)/config/bev_lane_detector.yaml"/>
-      <param name="bev_topic" value="$(var bev_topic)"/>
-    </node>
-  </group>
 </launch>

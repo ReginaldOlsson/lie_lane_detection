@@ -15,9 +15,14 @@ public:
 
   void setTemplateCurve(TemplateCurve * template_curve) {template_curve_ = template_curve;}
 
+  /// Fit a lane to the edges from a Hough seed. When refine is false the costly
+  /// non-linear refinement (Ceres / Gauss-Newton) is skipped, yielding the raw
+  /// RANSAC consensus - useful for cheaply ranking many candidate seeds before
+  /// paying for full refinement on the winner only.
   LaneHypothesis fit(
     const LaneHypothesis & seed,
-    const std::vector<EdgePoint> & edges) const;
+    const std::vector<EdgePoint> & edges,
+    bool refine = true) const;
 
   void refineGaussNewton(XiVector & xi, const std::vector<EdgePoint> & inliers) const;
 

@@ -44,6 +44,24 @@ cv::Mat EdgeExtractor::applySteerableBank(const cv::Mat & gray, cv::Mat * orient
   return response;
 }
 
+double EdgeExtractor::otsuThresholdMasked(
+  const cv::Mat & gray,
+  const cv::Mat & road_mask,
+  cv::Mat & binary_out)
+{
+  if (gray.empty() || road_mask.empty() || gray.size() != road_mask.size()) {
+    binary_out = gray.empty() ? cv::Mat{} : gray.clone();
+    return -1.0;
+  }
+
+  cv::Mat otsu_input = gray.clone();
+  otsu_input.setTo(0, ~road_mask);
+  const double threshold = cv::threshold(
+    otsu_input, binary_out, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
+  binary_out.setTo(0, ~road_mask);
+  return threshold;
+}
+
 void EdgeExtractor::thinBinaryEdges(cv::Mat & edges) const
 {
   cv::Mat skel = cv::Mat::zeros(edges.size(), CV_8U);

@@ -1,6 +1,5 @@
 #include "lie_lane_detection/nodes/node_params.hpp"
-#include "lie_lane_detection/pipeline/detection_common.hpp"
-#include "lie_lane_detection/pipeline/lane_detection_runner.hpp"
+#include "lie_lane_detection/pipeline/intensity_strip_lane_detector.hpp"
 #include "lie_lane_detection/visualization/visualization.hpp"
 
 #include <cv_bridge/cv_bridge.hpp>
@@ -49,12 +48,13 @@ bool homographyFromMsg(
 
 }  // namespace
 
-class BevLaneDetectorNode : public rclcpp::Node
+class IntensityStripLaneDetectorNode : public rclcpp::Node
 {
 public:
-  BevLaneDetectorNode()
-  : Node("bev_lane_detector_node"),
-    params_(loadDetectionParams(*this)),
+  IntensityStripLaneDetectorNode()
+  : Node("intensity_strip_lane_detector_node"),
+    detect_params_(loadDetectionParams(*this)),
+    strip_params_(loadIntensityStripParams(*this)),
     frame_id_(declare_parameter<std::string>("frame_id", "camera_front"))
   {
     const std::string bev_topic = declare_parameter<std::string>("bev_topic", "/ipm/bev");
@@ -62,44 +62,40 @@ public:
     const std::string homography_topic =
       declare_parameter<std::string>("homography_topic", "/ipm/homography");
     const std::string frontal_overlay_topic =
-      declare_parameter<std::string>("frontal_overlay_topic", "/lanes/detect/frontal_overlay");
+      declare_parameter<std::string>("frontal_overlay_topic", "/camera/image_raw/overlay");
 
     marker_pub_ =
-      create_publisher<visualization_msgs::msg::MarkerArray>("/lanes/detect/markers", 10);
-    merge_pub_ =
-      create_publisher<visualization_msgs::msg::MarkerArray>("/lanes/detect/merge_markers", 10);
-    stats_pub_ = create_publisher<std_msgs::msg::String>("/lanes/detect/stats", 10);
-    overlay_pub_ = image_transport::create_publisher(this, "/lanes/detect/overlay");
-    edges_pub_ = image_transport::create_publisher(this, "/lanes/detect/edges");
-    filtered_pub_ = image_transport::create_publisher(this, "/lanes/detect/filtered");
+      create_publisher<visualization_msgs::msg::MarkerArray>("/lanes/intensity/markers", 10);
+    stats_pub_ = create_publisher<std_msgs::msg::String>("/lanes/intensity/stats", 10);
+    overlay_pub_ = image_transport::create_publisher(this, "/lanes/intensity/overlay");
+    projection_pub_ = image_transport::create_publisher(this, "/lanes/intensity/projection");
     frontal_overlay_pub_ = image_transport::create_publisher(this, frontal_overlay_topic);
 
     image_sub_ = image_transport::create_subscription(
       this, image_topic,
-      std::bind(&BevLaneDetectorNode::onImage, this, std::placeholders::_1),
+      std::bind(&IntensityStripLaneDetectorNode::onImage, this, std::placeholders::_1),
       "raw", rmw_qos_profile_sensor_data);
 
     homography_sub_ = create_subscription<std_msgs::msg::Float64MultiArray>(
       homography_topic, rclcpp::QoS(10),
-      std::bind(&BevLaneDetectorNode::onHomography, this, std::placeholders::_1));
+      std::bind(&IntensityStripLaneDetectorNode::onHomography, this, std::placeholders::_1));
 
     bev_sub_ = image_transport::create_subscription(
-      this, bev_topic, std::bind(&BevLaneDetectorNode::onBevImage, this, std::placeholders::_1),
+      this, bev_topic,
+      std::bind(&IntensityStripLaneDetectorNode::onBevImage, this, std::placeholders::_1),
       "raw", rmw_qos_profile_sensor_data);
 
-    RCLCPP_INFO(get_logger(), "bev_lane_detector_node on %s", bev_topic.c_str());
+    RCLCPP_INFO(get_logger(), "intensity_strip_lane_detector_node on %s", bev_topic.c_str());
     RCLCPP_INFO(
       get_logger(),
-      "  publish: /lanes/detect/{overlay,frontal_overlay,edges,filtered,markers,stats}");
+      "  publish: /lanes/intensity/{overlay,projection,markers,stats}");
     RCLCPP_INFO(get_logger(), "  frontal overlay: %s", frontal_overlay_topic.c_str());
     RCLCPP_INFO(
       get_logger(),
-      "  preprocess: sharpen=%s otsu=%s otsu_detect=%s blur=%d morph_open=%d",
-      params_.bev_use_sharpen ? "on" : "off",
-      params_.bev_use_otsu ? "on" : "off",
-      params_.bev_otsu_for_detection ? "on" : "off",
-      params_.bev_gaussian_blur_ksize,
-      params_.bev_morph_open_px);
+      "  strips: H=%d max_peaks=%d v_half_w=%d",
+      strip_params_.num_horizontal_strips,
+      strip_params_.max_peaks_per_strip,
+      strip_params_.vertical_strip_half_width_px);
   }
 
 private:
@@ -118,8 +114,7 @@ private:
   struct PendingFrontalOverlay
   {
     std_msgs::msg::Header header;
-    std::vector<LaneHypothesis> lanes;
-    std::vector<MergeEvent> merges;
+    IntensityStripDetectionResult result;
   };
 
   static StampKey stampKey(const builtin_interfaces::msg::Time & stamp)
@@ -173,8 +168,8 @@ private:
       return;
     }
 
-    const cv::Mat frontal_overlay = drawFrontalOverlay(
-      img_it->second, pending_frontal_->lanes, pending_frontal_->merges, H_it->second);
+    const cv::Mat frontal_overlay = drawFrontalIntensityStripOverlay(
+      img_it->second, pending_frontal_->result, strip_params_, H_it->second);
     publishCvImage(frontal_overlay_pub_, frontal_overlay, pending_frontal_->header);
     pending_frontal_.reset();
   }
@@ -219,27 +214,6 @@ private:
     tryPublishFrontalOverlay();
   }
 
-  static std::string formatStats(
-    const BevDetectionResult & result,
-    double total_ms,
-    double otsu_threshold)
-  {
-    std::ostringstream oss;
-    oss << "mode=bev"
-        << " lanes=" << result.lanes.size()
-        << " total_ms=" << total_ms
-        << " detect_ms=" << result.elapsed_ms
-        << " edge_ms=" << result.edge_ms
-        << " vote_ms=" << result.vote_ms
-        << " fit_ms=" << result.fit_ms
-        << " post_ms=" << result.post_ms
-        << " edges=" << result.edge_point_count;
-    if (otsu_threshold >= 0.0) {
-      oss << " otsu_t=" << otsu_threshold;
-    }
-    return oss.str();
-  }
-
   void onBevImage(const sensor_msgs::msg::Image::ConstSharedPtr & msg)
   {
     cv_bridge::CvImageConstPtr cv_ptr;
@@ -250,43 +224,47 @@ private:
       return;
     }
 
-    PipelineParams bev_params = params_;
-    configureParamsForBev(bev_params, cv_ptr->image.cols, cv_ptr->image.rows);
-    configureParamsForPerspectiveIpm(bev_params);
-
-    const BevPreprocessResult prep =
-      preprocessBevForLaneDetection(cv_ptr->image, bev_params);
-
     const auto t0 = std::chrono::steady_clock::now();
-    const BevDetectionResult det = detectLanesInBev(prep.detect_image, bev_params);
+    const IntensityStripDetectionResult result =
+      detectLanesIntensityStrips(cv_ptr->image, detect_params_, strip_params_);
     const auto t1 = std::chrono::steady_clock::now();
     const double total_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
-    const cv::Mat overlay = drawOverlay(prep.display_bgr, det.lanes, det.merges);
-
-    marker_pub_->publish(lanesToMarkers(det.lanes, frame_id_, msg->header.stamp));
-    merge_pub_->publish(mergesToMarkers(det.merges, frame_id_, msg->header.stamp));
-    publishCvImage(overlay_pub_, overlay, msg->header);
-    publishCvImage(edges_pub_, det.edges, msg->header);
-    publishCvImage(filtered_pub_, prep.filtered_debug, msg->header);
+    publishCvImage(overlay_pub_, result.overlay, msg->header);
+    publishCvImage(projection_pub_, result.projection_debug, msg->header);
+    marker_pub_->publish(lanesToMarkers(result.lanes, frame_id_, msg->header.stamp));
 
     {
       std::lock_guard<std::mutex> lock(sync_mutex_);
-      pending_frontal_ = PendingFrontalOverlay{msg->header, det.lanes, det.merges};
+      pending_frontal_ = PendingFrontalOverlay{msg->header, result};
       tryPublishFrontalOverlay();
+      if (pending_frontal_.has_value()) {
+        RCLCPP_DEBUG(
+          get_logger(),
+          "Waiting for image/homography stamp %d.%u",
+          msg->header.stamp.sec, msg->header.stamp.nanosec);
+      }
     }
 
-    std_msgs::msg::String stats;
-    stats.data = formatStats(det, total_ms, prep.otsu_threshold);
-    stats_pub_->publish(stats);
+    std::ostringstream stats;
+    stats << "mode=intensity_strip"
+          << " H=" << result.horizontal_strip_count
+          << " V=" << result.vertical_strips.size()
+          << " lanes=" << result.lanes.size()
+          << " total_ms=" << total_ms
+          << " detect_ms=" << result.elapsed_ms;
+
+    std_msgs::msg::String stats_msg;
+    stats_msg.data = stats.str();
+    stats_pub_->publish(stats_msg);
 
     RCLCPP_INFO_THROTTLE(
       get_logger(), *get_clock(), 1000,
-      "DETECT | %zu lanes | %.1f ms | %s",
-      det.lanes.size(), total_ms, stats.data.c_str());
+      "INTENSITY | %s", stats_msg.data.c_str());
   }
 
-  PipelineParams params_;
+  PipelineParams detect_params_;
+  IntensityStripParams strip_params_;
   std::string frame_id_;
 
   std::mutex sync_mutex_;
@@ -299,11 +277,9 @@ private:
   rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr homography_sub_;
   image_transport::Subscriber bev_sub_;
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
-  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr merge_pub_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr stats_pub_;
   image_transport::Publisher overlay_pub_;
-  image_transport::Publisher edges_pub_;
-  image_transport::Publisher filtered_pub_;
+  image_transport::Publisher projection_pub_;
   image_transport::Publisher frontal_overlay_pub_;
 };
 
@@ -312,7 +288,7 @@ private:
 int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<lie_lane_detection::BevLaneDetectorNode>());
+  rclcpp::spin(std::make_shared<lie_lane_detection::IntensityStripLaneDetectorNode>());
   rclcpp::shutdown();
   return 0;
 }

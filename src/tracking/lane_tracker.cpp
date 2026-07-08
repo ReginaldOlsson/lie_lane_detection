@@ -436,7 +436,9 @@ TrackedFrameResult LaneTracker::processFrame(
   }
 
   configureParamsForBev(detect_params, bev_bgr.cols, bev_bgr.rows);
-  const cv::Mat work_bev = prepareBevForDetection(bev_bgr, detect_params);
+  const BevTrackingPrep prep = prepareBevGrayForTracking(bev_bgr, detect_params);
+  const cv::Mat & work_gray = prep.gray;
+  const cv::Mat & display_bgr = prep.display_bgr;
   const double y_max = bevEffectiveYMax(bev_bgr.rows, detect_params);
 
   TemplateCurve curve(detect_params);
@@ -465,7 +467,7 @@ TrackedFrameResult LaneTracker::processFrame(
 
   EdgeExtractor edge_extractor(detect_params);
   cv::Mat edges_img;
-  const auto all_edges = edge_extractor.extract(work_bev, &edges_img);
+  const auto all_edges = edge_extractor.extract(work_gray, &edges_img);
   result.edges = edges_img;
 
   const double border_margin =
@@ -489,7 +491,7 @@ TrackedFrameResult LaneTracker::processFrame(
     }
 
     const auto t_main0 = std::chrono::steady_clock::now();
-    const auto det = detectLanesInBev(work_bev, narrow_params);
+    const auto det = detectLanesInBev(work_gray, narrow_params);
     const auto t_main1 = std::chrono::steady_clock::now();
     result.main_ms = std::chrono::duration<double, std::milli>(t_main1 - t_main0).count();
     fuseMeasurements(det.lanes, static_cast<double>(bev_bgr.cols));
@@ -510,7 +512,7 @@ TrackedFrameResult LaneTracker::processFrame(
   MultiLaneExtractor role_extractor(detect_params);
   result.lanes = role_extractor.extract(result.lanes);
   result.merges = merge_topology.analyze(result.lanes);
-  result.overlay = drawOverlay(work_bev, result.lanes, result.merges);
+  result.overlay = drawOverlay(display_bgr, result.lanes, result.merges);
   result.track_count = tracks_.size();
 
   const auto t1 = std::chrono::steady_clock::now();

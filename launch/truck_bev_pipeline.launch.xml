@@ -10,14 +10,16 @@
   <arg name="video_path" default="/home/mosal/autoware/lane_detection_test_images/truck_frontal_video/truck_highway_7m40.mp4"/>
   <arg name="image_topic" default="/camera/image_raw"/>
   <arg name="bev_topic" default="/ipm/bev"/>
+  <arg name="image_topic" default="/camera/image_raw"/>
+  <arg name="frontal_overlay_topic" default="/lanes/detect/frontal_overlay"/>
   <arg name="publish_rate_hz" default="10.0"/>
   <arg name="target_width" default="640"/>
-  <arg name="bev_width_m" default="20.0"/>
-  <arg name="bev_length_m" default="60.0"/>
-  <arg name="bev_bottom_exclude_px" default="200.0"/>
+  <arg name="bev_width_m" default="90.0"/>
+  <arg name="bev_length_m" default="120.0"/>
+  <arg name="bev_bottom_exclude_px" default="450.0"/>
   <arg name="max_output_lanes" default="0"/>
 
-  <!-- <group if="$(var use_video_publisher)">
+  <group if="$(var use_video_publisher)">
     <node pkg="lie_lane_detection" exec="video_image_publisher_node" name="video_image_publisher" output="screen">
       <param name="video_path" value="$(var video_path)"/>
       <param name="image_topic" value="$(var image_topic)"/>
@@ -35,11 +37,13 @@
     <param name="bev_width_m" value="$(var bev_width_m)"/>
     <param name="bev_length_m" value="$(var bev_length_m)"/>
     <param name="bev_bottom_exclude_px" value="$(var bev_bottom_exclude_px)"/>
-  </node> -->
+  </node>
 
   <node pkg="lie_lane_detection" exec="bev_lane_detector_node" name="bev_lane_detector_node" output="screen">
     <param from="$(find-pkg-share lie_lane_detection)/config/bev_lane_detector.yaml"/>
     <param name="bev_topic" value="$(var bev_topic)"/>
+    <param name="image_topic" value="$(var image_topic)"/>
+    <param name="frontal_overlay_topic" value="$(var frontal_overlay_topic)"/>
     <param name="bev_bottom_exclude_px" value="$(var bev_bottom_exclude_px)"/>
     <param name="max_output_lanes" value="$(var max_output_lanes)"/>
   </node>

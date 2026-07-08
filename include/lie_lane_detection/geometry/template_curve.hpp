@@ -22,6 +22,13 @@ public:
 
   double distanceToCurve(const XiVector & xi, const Vec2 & p, double * nearest_t = nullptr) const;
 
+  /// Distance from a point already expressed in the SE(2)-local frame (a=lateral,
+  /// b=forward) to the deformed template x_c(t)=A t^2 + B t, y_c(t)=y_min+y_span t
+  /// (A=kappa*y_span, B=sigma*y_span). Callers that evaluate many (kappa,sigma)
+  /// values for a fixed pose can transform the point once and reuse it here.
+  double distanceInLocalFrame(
+    double a, double b, double kappa, double sigma, double * nearest_t = nullptr) const;
+
   /// Minimum distance from a line segment to the curve (not midpoint-only).
   double segmentDistanceToCurve(const XiVector & xi, const LineSegment & seg) const;
 

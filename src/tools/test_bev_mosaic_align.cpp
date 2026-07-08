@@ -12,6 +12,7 @@
 #include <opencv2/imgcodecs.hpp>
 
 #include "lie_lane_detection/mosaic/bev_registration.hpp"
+#include "lie_lane_detection/mosaic/bev_orb_matcher.hpp"
 
 namespace fs = std::filesystem;
 
@@ -23,8 +24,11 @@ lie_lane_detection::BevRegistrationMethod parseMethod(const std::string & value)
   if (value == "ecc") {
     return lie_lane_detection::BevRegistrationMethod::ECC;
   }
-  if (value == "orb") {
+  if (value == "orb" || value == "features") {
     return lie_lane_detection::BevRegistrationMethod::ORB;
+  }
+  if (value == "orb_then_ecc") {
+    return lie_lane_detection::BevRegistrationMethod::ORB_THEN_ECC;
   }
   return lie_lane_detection::BevRegistrationMethod::ECC_THEN_ORB;
 }
@@ -36,7 +40,7 @@ int main(int argc, char ** argv)
   std::string prev_path;
   std::string curr_path;
   fs::path output_dir = "/tmp/bev_align";
-  std::string method = "auto";
+  std::string method = "orb";
 
   for (int i = 1; i < argc; ++i) {
     const std::string arg = argv[i];
@@ -50,7 +54,7 @@ int main(int argc, char ** argv)
       method = argv[++i];
     } else if (arg == "--help" || arg == "-h") {
       std::cout <<
-        "Usage: test_bev_mosaic_align --prev PATH --curr PATH [--output DIR] [--method auto|ecc|orb]\n";
+        "Usage: test_bev_mosaic_align --prev PATH --curr PATH [--output DIR] [--method orb|ecc|orb_then_ecc|ecc_then_orb]\n";
       return 0;
     }
   }
@@ -73,10 +77,11 @@ int main(int argc, char ** argv)
   }
 
   lie_lane_detection::BevRegistrationParams params;
-  params.method = parseMethod(method == "auto" ? "ecc_then_orb" : method);
+  params.method = parseMethod(method);
   if (method == "auto") {
-    params.method = lie_lane_detection::BevRegistrationMethod::ECC_THEN_ORB;
+    params.method = lie_lane_detection::BevRegistrationMethod::ORB;
   }
+  params.orb_match_method = lie_lane_detection::BevOrbMatchMethod::RADIUS_BF;
 
   const auto reg = lie_lane_detection::estimateBevFrameMotion(prev, curr, params);
   const auto debug = lie_lane_detection::makeBevAlignmentDebug(prev, curr, reg, params);

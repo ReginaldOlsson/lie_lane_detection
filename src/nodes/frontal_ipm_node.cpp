@@ -75,14 +75,15 @@ private:
     msg.layout.dim[1].label = "col";
     msg.layout.dim[1].size = 3;
     msg.layout.dim[1].stride = 3;
-    msg.data.resize(9);
+    msg.data.resize(11);
     for (int r = 0; r < 3; ++r) {
       for (int c = 0; c < 3; ++c) {
         msg.data[static_cast<size_t>(r * 3 + c)] = H.at<double>(r, c);
       }
     }
+    msg.data[9] = static_cast<double>(header.stamp.sec);
+    msg.data[10] = static_cast<double>(header.stamp.nanosec);
     msg.layout.data_offset = 0;
-    (void)header;
     homography_pub_->publish(msg);
   }
 
@@ -107,9 +108,9 @@ private:
     cv::Mat bev_out = hg.bev.clone();
     maskBevBottomExclude(bev_out, params_);
 
+    publishHomography(hg.H_img2bev, msg->header);
     publishCvImage(bev_pub_, bev_out, msg->header);
     publishCvImage(roi_pub_, hg.debug_roi, msg->header);
-    publishHomography(hg.H_img2bev, msg->header);
 
     RCLCPP_INFO_THROTTLE(
       get_logger(), *get_clock(), 2000,

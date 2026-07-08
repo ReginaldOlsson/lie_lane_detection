@@ -4,6 +4,7 @@
 #include <opencv2/imgproc.hpp>
 
 #include "lie_lane_detection/mosaic/bev_mosaic_accumulator.hpp"
+#include "lie_lane_detection/mosaic/bev_orb_matcher.hpp"
 #include "lie_lane_detection/mosaic/bev_registration.hpp"
 
 namespace lie_lane_detection
@@ -38,12 +39,57 @@ TEST(BevMosaicAccumulator, firstFrameInitializesCanvas)
 TEST(BevRegistration, identicalImagesGiveIdentity)
 {
   BevRegistrationParams params;
-  params.method = BevRegistrationMethod::ECC_THEN_ORB;
+  params.method = BevRegistrationMethod::ORB;
   const cv::Mat frame = makeStripedBev(200, 300);
   const auto reg = estimateBevFrameMotion(frame, frame, params);
+  EXPECT_TRUE(reg.valid);
+  EXPECT_EQ(reg.method_used, "orb");
   EXPECT_NEAR(reg.dx_px, 0.0, 1.0);
   EXPECT_NEAR(reg.dy_px, 0.0, 1.0);
   EXPECT_NEAR(reg.yaw_rad, 0.0, 0.05);
+}
+
+TEST(BevOrbMatcher, selfMatchIsConsistent)
+{
+  cv::Mat gray(200, 320, CV_8UC1, cv::Scalar(60));
+  for (int x = 0; x < gray.cols; x += 10) {
+    for (int y = 0; y < gray.rows; y += 10) {
+      if ((x / 10 + y / 10) % 2 == 0) {
+        cv::rectangle(gray, cv::Rect(x, y, 10, 10), cv::Scalar(200), cv::FILLED);
+      }
+    }
+  }
+
+  BevOrbParams params;
+  params.match_method = BevOrbMatchMethod::FLANN_LSH;
+  params.fast_threshold = 10;
+  const BevOrbFeatures feat = extractBevOrb(gray, cv::Mat(), params);
+  ASSERT_GT(feat.keypoints.size(), 20u);
+
+  const auto matches = matchBevOrb(feat, feat, params);
+  EXPECT_GT(matches.size(), 20u);
+}
+
+TEST(BevOrbMatcher, gridCapsKeypointCount)
+{
+  cv::Mat gray(200, 320, CV_8UC1, cv::Scalar(60));
+  for (int x = 0; x < gray.cols; x += 10) {
+    for (int y = 0; y < gray.rows; y += 10) {
+      if ((x / 10 + y / 10) % 2 == 0) {
+        cv::rectangle(gray, cv::Rect(x, y, 10, 10), cv::Scalar(200), cv::FILLED);
+      }
+    }
+  }
+
+  BevOrbParams params;
+  params.uniform_cap = 200;
+  params.grid_cell_px = 16;
+  params.max_per_cell = 4;
+  params.fast_threshold = 10;
+  const BevOrbFeatures feat = extractBevOrb(gray, cv::Mat(), params);
+  EXPECT_GT(feat.keypoints.size(), 10u);
+  EXPECT_LE(feat.keypoints.size(), 200u);
+  EXPECT_FALSE(feat.descriptors.empty());
 }
 
 }  // namespace

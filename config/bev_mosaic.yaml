@@ -10,19 +10,37 @@ bev_mosaic_node:
     stats_topic: "/ipm/mosaic/stats"
     reset_on_first_frame: false
 
-    registration_method: "auto"
-    max_stored_frames: 3
-    min_ecc_correlation: 0.25
-    ecc_max_iterations: 80
+    # ORB-first registration (Monocular-VO style); ecc_then_orb / orb_then_ecc for fallback
+    registration_method: "orb"
+    max_stored_frames: 4
+    min_ecc_correlation: 0.35
+    ecc_max_iterations: 250
     ecc_epsilon: 0.00001
+
+    # ORB extraction (see Monocular-Visual-Odometry/config/config.yaml)
+    orb_extract_count: 8000
+    orb_uniform_cap: 1500
     orb_features: 1500
+    orb_scale_factor: 1.2
+    orb_nlevels: 4
+    orb_fast_threshold: 20
+    orb_grid_cell_px: 16
+    orb_max_per_cell: 8
+
+    # ORB matching: radius | flann | lowe
+    orb_match_method: "radius"
+    orb_xiang_gao_ratio: 2.0
+    orb_lowe_ratio: 0.75
+    orb_radius_match_px: 100
     feature_match_ratio: 0.75
-    feature_min_inliers: 10
-    max_step_translation_px: 200.0
-    max_step_rotation_rad: 0.15
+    feature_min_inliers: 12
+    orb_ransac_threshold: 3.0
+
+    max_step_translation_px: 350.0
+    max_step_rotation_rad: 0.25
     mask_bottom_exclude_ratio: 0.15
-    mask_gray_threshold: 25
+    mask_gray_threshold: 50
     use_constant_velocity_fallback: true
     use_coarse_translation_init: true
     coarse_max_dy_px: 120
-    coarse_dy_step_px: 2
+    coarse_dy_step_px: 3

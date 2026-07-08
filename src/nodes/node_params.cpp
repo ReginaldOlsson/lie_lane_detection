@@ -33,6 +33,12 @@ PipelineParams loadDetectionParams(rclcpp::Node & node)
   p.edge_low_threshold = node.declare_parameter<double>("edge_low_threshold", 25.0);
   p.edge_high_threshold = node.declare_parameter<double>("edge_high_threshold", 70.0);
   p.bev_bottom_exclude_px = node.declare_parameter<double>("bev_bottom_exclude_px", 0.0);
+  p.bev_use_sharpen = node.declare_parameter<bool>("bev_use_sharpen", false);
+  p.bev_use_otsu = node.declare_parameter<bool>("bev_use_otsu", false);
+  p.bev_otsu_for_detection = node.declare_parameter<bool>("bev_otsu_for_detection", false);
+  p.bev_gaussian_blur_ksize = node.declare_parameter<int>("bev_gaussian_blur_ksize", 0);
+  p.bev_morph_open_px = node.declare_parameter<int>("bev_morph_open_px", 0);
+  p.bev_min_road_gray = node.declare_parameter<int>("bev_min_road_gray", 25);
   p.top_k_peaks = node.declare_parameter<int>("top_k_peaks", 10);
   p.max_lane_hypotheses = node.declare_parameter<int>("max_lane_hypotheses", 8);
   p.max_output_lanes = node.declare_parameter<int>("max_output_lanes", 0);

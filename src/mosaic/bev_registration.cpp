@@ -8,6 +8,8 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/video/tracking.hpp>
 
+#include "lie_lane_detection/mosaic/bev_orb_matcher.hpp"
+
 namespace lie_lane_detection
 {
 namespace
@@ -187,45 +189,43 @@ BevRegistrationResult registerOrb(
   const cv::Mat & prev_gray,
   const cv::Mat & curr_gray,
   const cv::Mat & prev_mask,
+  const cv::Mat & curr_mask,
   const BevRegistrationParams & params)
 {
   BevRegistrationResult result;
   result.method_used = "orb";
 
-  cv::Ptr<cv::ORB> orb = cv::ORB::create(params.orb_max_features);
-  std::vector<cv::KeyPoint> kp_prev;
-  std::vector<cv::KeyPoint> kp_curr;
-  cv::Mat desc_prev;
-  cv::Mat desc_curr;
-  orb->detectAndCompute(prev_gray, prev_mask, kp_prev, desc_prev);
-  orb->detectAndCompute(curr_gray, prev_mask, kp_curr, desc_curr);
+  BevOrbParams orb_params;
+  orb_params.extract_count = params.orb_extract_count;
+  orb_params.uniform_cap = std::max(params.orb_uniform_cap, params.orb_max_features);
+  orb_params.grid_cell_px = params.orb_grid_cell_px;
+  orb_params.max_per_cell = params.orb_max_per_cell;
+  orb_params.scale_factor = params.orb_scale_factor;
+  orb_params.nlevels = params.orb_nlevels;
+  orb_params.fast_threshold = params.orb_fast_threshold;
+  orb_params.match_method = params.orb_match_method;
+  orb_params.xiang_gao_ratio = params.orb_xiang_gao_ratio;
+  orb_params.lowe_ratio = params.orb_lowe_ratio;
+  orb_params.radius_match_px = params.orb_radius_match_px;
 
-  if (desc_prev.empty() || desc_curr.empty()) {
+  const BevOrbFeatures prev_feat = extractBevOrb(prev_gray, prev_mask, orb_params);
+  const BevOrbFeatures curr_feat = extractBevOrb(curr_gray, curr_mask, orb_params);
+  if (prev_feat.descriptors.empty() || curr_feat.descriptors.empty()) {
     return result;
   }
 
-  cv::BFMatcher matcher(cv::NORM_HAMMING, true);
-  std::vector<cv::DMatch> matches;
-  matcher.match(desc_prev, desc_curr, matches);
+  std::vector<cv::DMatch> matches = matchBevOrb(prev_feat, curr_feat, orb_params);
   if (matches.size() < static_cast<size_t>(params.orb_min_inliers)) {
     return result;
   }
-
-  std::sort(matches.begin(), matches.end(), [](const cv::DMatch & a, const cv::DMatch & b) {
-      return a.distance < b.distance;
-    });
-  const size_t keep = std::max<size_t>(
-    static_cast<size_t>(params.orb_min_inliers),
-    static_cast<size_t>(matches.size() * params.orb_match_ratio));
-  matches.resize(std::min(keep, matches.size()));
 
   std::vector<cv::Point2f> pts_prev;
   std::vector<cv::Point2f> pts_curr;
   pts_prev.reserve(matches.size());
   pts_curr.reserve(matches.size());
   for (const auto & m : matches) {
-    pts_prev.push_back(kp_prev[static_cast<size_t>(m.queryIdx)].pt);
-    pts_curr.push_back(kp_curr[static_cast<size_t>(m.trainIdx)].pt);
+    pts_prev.push_back(prev_feat.keypoints[static_cast<size_t>(m.queryIdx)].pt);
+    pts_curr.push_back(curr_feat.keypoints[static_cast<size_t>(m.trainIdx)].pt);
   }
 
   cv::Mat inliers;
@@ -258,24 +258,35 @@ BevRegistrationResult estimateBevFrameMotion(
     return out;
   }
 
-  const cv::Mat mask = buildBevRoadMask(prev_gray, params);
+  const cv::Mat prev_mask = buildBevRoadMask(prev_gray, params);
+  const cv::Mat curr_mask = buildBevRoadMask(curr_gray, params);
 
-  const bool try_ecc = params.method == BevRegistrationMethod::ECC ||
-    params.method == BevRegistrationMethod::ECC_THEN_ORB;
   const bool try_orb = params.method == BevRegistrationMethod::ORB ||
-    params.method == BevRegistrationMethod::ECC_THEN_ORB;
+    params.method == BevRegistrationMethod::ECC_THEN_ORB ||
+    params.method == BevRegistrationMethod::ORB_THEN_ECC;
+  const bool try_ecc = params.method == BevRegistrationMethod::ECC ||
+    params.method == BevRegistrationMethod::ECC_THEN_ORB ||
+    params.method == BevRegistrationMethod::ORB_THEN_ECC;
 
   BevRegistrationResult ecc_result;
   BevRegistrationResult orb_result;
 
-  if (try_ecc) {
-    ecc_result = registerEcc(prev_gray, curr_gray, mask, params);
+  if (try_orb && params.method == BevRegistrationMethod::ORB_THEN_ECC) {
+    orb_result = registerOrb(prev_gray, curr_gray, prev_mask, curr_mask, params);
+    if (orb_result.valid) {
+      return orb_result;
+    }
+  }
+
+  if (try_ecc && params.method != BevRegistrationMethod::ORB) {
+    ecc_result = registerEcc(prev_gray, curr_gray, prev_mask, params);
     if (ecc_result.valid) {
       return ecc_result;
     }
   }
+
   if (try_orb) {
-    orb_result = registerOrb(prev_gray, curr_gray, mask, params);
+    orb_result = registerOrb(prev_gray, curr_gray, prev_mask, curr_mask, params);
     if (orb_result.valid) {
       return orb_result;
     }

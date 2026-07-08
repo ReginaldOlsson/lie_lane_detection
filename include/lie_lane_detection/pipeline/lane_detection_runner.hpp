@@ -19,6 +19,11 @@ struct BevDetectionResult
   double elapsed_ms{0.0};
   double line_hough_ms{0.0};
   double lie_vote_ms{0.0};
+  // Per-stage timing (ms) for real-time profiling.
+  double edge_ms{0.0};
+  double vote_ms{0.0};
+  double fit_ms{0.0};
+  double post_ms{0.0};
 };
 
 /// Tune Hough/RANSAC bins for a BEV image in pixel coordinates.

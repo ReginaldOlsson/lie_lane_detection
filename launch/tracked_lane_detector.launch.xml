@@ -4,7 +4,7 @@
 
   Usage:
     ros2 launch lie_lane_detection tracked_lane_detector.launch.xml
-    ros2 launch lie_lane_detection tracked_lane_detector.launch.xml image_topic:=/sensing/camera/front/image_raw
+    ros2 launch lie_lane_detection tracked_lane_detector.launch.  xml image_topic:=/sensing/camera/front/image_raw
 -->
 <launch>
   <arg name="image_topic" default="/camera/image_raw" description="Input image topic"/>

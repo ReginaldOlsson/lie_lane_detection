@@ -30,6 +30,30 @@ void maskBevBottomExclude(cv::Mat & bev_bgr, const PipelineParams & params);
 /// Clone BEV and mask bottom exclude region when enabled.
 cv::Mat prepareBevForDetection(const cv::Mat & bev_bgr, const PipelineParams & params);
 
+struct BevTrackingPrep
+{
+  cv::Mat display_bgr;
+  cv::Mat gray;
+};
+
+/// Grayscale + road mask for lane tracking (edges, stripe, main detect); BGR kept for overlay.
+BevTrackingPrep prepareBevGrayForTracking(
+  const cv::Mat & bev_bgr,
+  const PipelineParams & params);
+
+struct BevPreprocessResult
+{
+  cv::Mat display_bgr;
+  cv::Mat detect_image;
+  cv::Mat filtered_debug;
+  double otsu_threshold{-1.0};
+};
+
+/// Grayscale road-masked preprocess for detection; optional Otsu on filtered debug topic.
+BevPreprocessResult preprocessBevForLaneDetection(
+  const cv::Mat & bev_bgr,
+  const PipelineParams & params);
+
 std::vector<EdgePoint> filterBorderEdges(
   const std::vector<EdgePoint> & edges,
   double x_min,

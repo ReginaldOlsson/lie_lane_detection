@@ -1,0 +1,52 @@
+intensity_strip_lane_detector_node:
+  ros__parameters:
+    bev_topic: "/ipm/bev"
+    image_topic: "/camera/image_raw"
+    homography_topic: "/ipm/homography"
+    frontal_overlay_topic: "/camera/image_raw/overlay"
+    frame_id: "camera_front"
+
+    # Intensity strip layout
+    num_horizontal_strips: 12
+    max_peaks_per_strip: 4
+    min_peak_height_ratio: 0.30
+    min_peak_separation_px: 40
+    vertical_strip_half_width_px: 55
+    projection_smooth_ksize: 9
+    min_road_gray: 20
+    bev_bottom_exclude_px: 200.0
+    dedupe_vertical_rois: true
+    min_lane_merge_px: 36.0
+
+    # Per-strip lane fit (reuse BEV detector on each vertical ROI)
+    use_steerable_filter: true
+    connect_dashed_edges: true
+    edge_anisotropic_blur: true
+    edge_thin: true
+    edge_low_threshold: 24.0
+    edge_high_threshold: 68.0
+
+    top_k_peaks: 4
+    max_lane_hypotheses: 4
+    max_output_lanes: 1
+    use_iterative_peeling: true
+    vote_threshold_px: 8.0
+    inlier_threshold_px: 10.0
+    min_inlier_ratio: 0.30
+    min_inliers: 12
+    min_lane_separation_px: 30.0
+    peel_edge_margin_px: 12.0
+    min_inlier_y_coverage: 0.25
+
+    line_hough_threshold: 24
+    line_min_length_px: 18.0
+    line_max_gap_px: 12.0
+
+    kappa_min: -0.28
+    kappa_max: 0.28
+    sigma_min: -0.55
+    sigma_max: 0.55
+
+    bev_use_sharpen: false
+    bev_use_otsu: false
+    bev_otsu_for_detection: false

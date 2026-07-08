@@ -98,6 +98,7 @@ public:
   const std::vector<LaneTrack> & tracks() const {return tracks_;}
 
   /// Pass \p video_frame_index for timestamp; \p video_fps for predict dt.
+  /// Pass BGR or grayscale BEV; tracking runs on grayscale, overlay uses BGR.
   TrackedFrameResult processFrame(
     const cv::Mat & bev_bgr,
     PipelineParams detect_params,

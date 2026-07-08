@@ -55,6 +55,7 @@ set(CORE_SOURCES
   src/extraction/merge_topology.cpp
   src/pipeline/detection_common.cpp
   src/pipeline/lane_detection_runner.cpp
+  src/pipeline/intensity_strip_lane_detector.cpp
   src/pipeline/lane_detection_pipeline.cpp
   src/pipeline/line_lane_detection_runner.cpp
   src/pipeline/line_lane_detection_pipeline.cpp
@@ -62,6 +63,7 @@ set(CORE_SOURCES
   src/motion/ego_motion_estimator.cpp
   src/mosaic/bev_mosaic_accumulator.cpp
   src/mosaic/bev_registration.cpp
+  src/mosaic/bev_orb_matcher.cpp
   src/nodes/node_params.cpp
   src/visualization/visualization.cpp
   src/testing/synthetic_bev_generator.cpp
@@ -163,9 +165,23 @@ ament_target_dependencies(bev_mosaic_node
   image_transport
 )
 
+add_executable(intensity_strip_lane_detector_node src/nodes/intensity_strip_lane_detector_node.cpp)
+target_link_libraries(intensity_strip_lane_detector_node lie_lane_detection_core)
+ament_target_dependencies(intensity_strip_lane_detector_node
+  rclcpp
+  sensor_msgs
+  visualization_msgs
+  std_msgs
+  cv_bridge
+  image_transport
+)
+
 # --- Offline tools ---
 add_executable(lane_detect_offline src/tools/lane_detect_offline.cpp)
 target_link_libraries(lane_detect_offline lie_lane_detection_core ${OpenCV_LIBS})
+
+add_executable(benchmark_bev_detection src/tools/benchmark_bev_detection.cpp)
+target_link_libraries(benchmark_bev_detection lie_lane_detection_core ${OpenCV_LIBS})
 
 add_executable(compare_lane_detection src/tools/compare_lane_detection.cpp)
 target_link_libraries(compare_lane_detection lie_lane_detection_core ${OpenCV_LIBS})
@@ -191,7 +207,9 @@ install(TARGETS
   frontal_ipm_node
   bev_lane_detector_node
   bev_mosaic_node
+  intensity_strip_lane_detector_node
   lane_detect_offline
+  benchmark_bev_detection
   lane_detect_video_offline
   estimate_frontal_homography
   test_bev_mosaic_align

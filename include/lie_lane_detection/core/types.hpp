@@ -78,6 +78,15 @@ struct PipelineParams
   double edge_border_margin_ratio{0.07};
   /// Pixels masked at bottom of BEV (hood / truck body). 0 = disabled.
   double bev_bottom_exclude_px{0.0};
+  /// BEV noise filter / preprocessing before lane detection.
+  bool bev_use_sharpen{false};
+  /// Compute Otsu binary for /lanes/detect/filtered debug topic.
+  bool bev_use_otsu{false};
+  /// When true, run detection on Otsu binary (aggressive; usually worse for lanes).
+  bool bev_otsu_for_detection{false};
+  int bev_gaussian_blur_ksize{0};
+  int bev_morph_open_px{0};
+  int bev_min_road_gray{25};
 
   // Lie-Hough Stage A (SE2)
   int se2_vx_bins{41};
@@ -131,8 +140,8 @@ struct PipelineParams
   int template_samples{50};
 
   // Continuous production pipeline (coarse SE2 Hough + Ceres LM)
-  bool use_continuous_pipeline{true};
-  bool use_coarse_pyramid_voter{true};
+  bool use_continuous_pipeline{false};
+  bool use_coarse_pyramid_voter{false};
   bool use_soft_voting{true};
   bool use_ceres_fitter{true};
   bool use_dual_space_prune{true};

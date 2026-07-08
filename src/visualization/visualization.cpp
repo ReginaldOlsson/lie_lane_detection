@@ -176,7 +176,12 @@ cv::Mat drawOverlay(
   const std::vector<LaneHypothesis> & lanes,
   const std::vector<MergeEvent> & merges)
 {
-  cv::Mat overlay = bev_bgr.clone();
+  cv::Mat overlay;
+  if (bev_bgr.channels() == 1) {
+    cv::cvtColor(bev_bgr, overlay, cv::COLOR_GRAY2BGR);
+  } else {
+    overlay = bev_bgr.clone();
+  }
   for (const auto & lane : lanes) {
     const auto rgba = roleColor(lane.role);
     const cv::Scalar color(

@@ -179,7 +179,8 @@ void ManifoldRansac::refineGaussNewton(XiVector & xi, const std::vector<EdgePoin
 
 LaneHypothesis ManifoldRansac::fit(
   const LaneHypothesis & seed,
-  const std::vector<EdgePoint> & edges) const
+  const std::vector<EdgePoint> & edges,
+  bool refine) const
 {
   LaneHypothesis best = seed;
   const std::vector<EdgePoint> candidates = collectCandidates(seed.xi, edges);
@@ -235,30 +236,41 @@ LaneHypothesis ManifoldRansac::fit(
   XiVector best_xi = best_state.xi;
   std::vector<bool> best_mask = best_state.mask;
 
-  std::vector<EdgePoint> inlier_points;
-  for (size_t i = 0; i < candidates.size(); ++i) {
-    if (i < best_mask.size() && best_mask[i]) {
-      inlier_points.push_back(candidates[i]);
-    }
-  }
-  refineGaussNewton(best_xi, inlier_points);
-
-  std::vector<bool> refined_mask;
-  best_inliers = countInliers(best_xi, candidates, &refined_mask);
-  inlier_points.clear();
-  for (size_t i = 0; i < candidates.size(); ++i) {
-    if (i < refined_mask.size() && refined_mask[i]) {
-      inlier_points.push_back(candidates[i]);
-    }
-  }
-  if (inlier_points.size() >= static_cast<size_t>(params_.min_inliers)) {
-    refineGaussNewton(best_xi, inlier_points);
-    best_inliers = countInliers(best_xi, candidates, &refined_mask);
-    inlier_points.clear();
-    for (size_t i = 0; i < candidates.size(); ++i) {
-      if (i < refined_mask.size() && refined_mask[i]) {
-        inlier_points.push_back(candidates[i]);
+  auto edgesFromMask = [&](const std::vector<bool> & mask) {
+      std::vector<EdgePoint> pts;
+      for (size_t i = 0; i < candidates.size(); ++i) {
+        if (i < mask.size() && mask[i]) {
+          pts.push_back(candidates[i]);
+        }
       }
+      return pts;
+    };
+
+  // Iterated reweighted refinement. A non-linear refinement (Ceres / Gauss-
+  // Newton) can diverge when a parameter is weakly observed - e.g. the
+  // longitudinal offset vy of a near-straight lane is nearly gauge-free, so an
+  // unconstrained solve may slide the curve off the data entirely. Guard each
+  // step: accept the refined pose only if it preserves the RANSAC consensus,
+  // otherwise keep the previous best. This makes the fit robust and never worse
+  // than the RANSAC hypothesis.
+  for (int pass = 0; refine && pass < 2; ++pass) {
+    const std::vector<EdgePoint> inliers = edgesFromMask(best_mask);
+    if (inliers.size() < static_cast<size_t>(params_.min_inliers)) {
+      break;
+    }
+    XiVector cand_xi = best_xi;
+    refineGaussNewton(cand_xi, inliers);
+    std::vector<bool> cand_mask;
+    const int cand_inliers = countInliers(cand_xi, candidates, &cand_mask);
+    if (cand_inliers < best_inliers) {
+      break;  // refinement made consensus worse: reject and stop.
+    }
+    const bool converged = (cand_inliers == best_inliers);
+    best_xi = cand_xi;
+    best_inliers = cand_inliers;
+    best_mask = std::move(cand_mask);
+    if (converged) {
+      break;
     }
   }
 
@@ -267,8 +279,8 @@ LaneHypothesis ManifoldRansac::fit(
     static_cast<double>(best_inliers) / static_cast<double>(candidates.size());
   best.score = seed.score * best.inlier_ratio;
   best.polyline = template_curve_->samplePolyline(best.xi);
-  best.inlier_mask = refined_mask;
-  best.supporting_edges = inlier_points;
+  best.inlier_mask = best_mask;
+  best.supporting_edges = edgesFromMask(best_mask);
   return best;
 }
 

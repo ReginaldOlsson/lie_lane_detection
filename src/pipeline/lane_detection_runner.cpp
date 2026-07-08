@@ -168,7 +168,10 @@ BevDetectionResult detectLanesInBev(const cv::Mat & bev_bgr, PipelineParams para
 
   EdgeExtractor edge_extractor(params);
   cv::Mat edges_img;
+  const auto t_edge0 = std::chrono::steady_clock::now();
   const auto all_edges = edge_extractor.extract(work_bev, &edges_img);
+  result.edge_ms =
+    std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t_edge0).count();
   result.edge_point_count = all_edges.size();
 
   const double border_margin = static_cast<double>(bev_bgr.cols) * params.edge_border_margin_ratio;
@@ -252,6 +255,7 @@ BevDetectionResult detectLanesInBev(const cv::Mat & bev_bgr, PipelineParams para
   MultiLaneExtractor multi_lane(params);
   MergeTopology merge_topology(params, &template_curve);
 
+  const auto t_votefit0 = std::chrono::steady_clock::now();
   std::vector<LaneHypothesis> refined;
   if (params.use_iterative_peeling) {
     std::vector<EdgePoint> remaining = working_edges;
@@ -261,12 +265,20 @@ BevDetectionResult detectLanesInBev(const cv::Mat & bev_bgr, PipelineParams para
       }
 
       cv::Mat * hough_ptr = (iter == 0) ? &result.hough_slice : nullptr;
+      const auto t_vote0 = std::chrono::steady_clock::now();
       const auto seeds = voter.vote(remaining, hough_ptr);
+      result.vote_ms +=
+        std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t_vote0)
+        .count();
       if (seeds.empty()) {
         break;
       }
 
+      const auto t_fit0 = std::chrono::steady_clock::now();
       LaneHypothesis best = pickBestSeed(seeds, remaining, ransac, refined, params, y_max);
+      result.fit_ms +=
+        std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t_fit0)
+        .count();
       if (best.score <= 0.0 || !passesQualityGate(best, params, y_max)) {
         break;
       }
@@ -276,8 +288,12 @@ BevDetectionResult detectLanesInBev(const cv::Mat & bev_bgr, PipelineParams para
         remaining, template_curve, best.xi, params.peel_edge_margin_px);
     }
   } else {
+    const auto t_vote0 = std::chrono::steady_clock::now();
     const auto seeds = voter.vote(working_edges, &result.hough_slice);
+    result.vote_ms +=
+      std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t_vote0).count();
     refined.resize(seeds.size());
+    const auto t_fit0 = std::chrono::steady_clock::now();
     tbb::parallel_for(
       tbb::blocked_range<size_t>(0, seeds.size()),
       [&](const tbb::blocked_range<size_t> & range) {
@@ -285,8 +301,13 @@ BevDetectionResult detectLanesInBev(const cv::Mat & bev_bgr, PipelineParams para
           refined[i] = ransac.fit(seeds[i], working_edges);
         }
       });
+    result.fit_ms +=
+      std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t_fit0).count();
   }
+  result.lie_vote_ms = result.vote_ms;
+  (void)t_votefit0;
 
+  const auto t_post0 = std::chrono::steady_clock::now();
   result.lanes = multi_lane.extract(refined);
   result.lanes.erase(
     std::remove_if(
@@ -306,6 +327,8 @@ BevDetectionResult detectLanesInBev(const cv::Mat & bev_bgr, PipelineParams para
   result.merges = merge_topology.analyze(result.lanes);
   result.edges = edges_img;
   result.overlay = drawOverlay(work_bev, result.lanes, result.merges);
+  result.post_ms =
+    std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t_post0).count();
   const auto t1 = std::chrono::steady_clock::now();
   result.elapsed_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
   return result;

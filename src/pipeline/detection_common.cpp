@@ -2,11 +2,12 @@
 
 #include <algorithm>
 
-#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
 
 #include "lie_lane_detection/fitting/manifold_ransac.hpp"
 #include "lie_lane_detection/common/parallel.hpp"
 #include "lie_lane_detection/geometry/template_curve.hpp"
+#include "lie_lane_detection/preprocessing/edge_extractor.hpp"
 
 namespace lie_lane_detection
 {
@@ -88,6 +89,95 @@ cv::Mat prepareBevForDetection(const cv::Mat & bev_bgr, const PipelineParams & p
   cv::Mat masked = bev_bgr.clone();
   maskBevBottomExclude(masked, params);
   return masked;
+}
+
+BevTrackingPrep prepareBevGrayForTracking(
+  const cv::Mat & bev_bgr,
+  const PipelineParams & params)
+{
+  BevTrackingPrep out;
+  if (bev_bgr.empty()) {
+    return out;
+  }
+
+  cv::Mat bgr = prepareBevForDetection(bev_bgr, params);
+  if (bgr.channels() == 1) {
+    out.gray = bgr.clone();
+    cv::cvtColor(bgr, out.display_bgr, cv::COLOR_GRAY2BGR);
+  } else {
+    out.display_bgr = bgr.clone();
+    cv::cvtColor(bgr, out.gray, cv::COLOR_BGR2GRAY);
+  }
+
+  const uchar min_road = static_cast<uchar>(std::clamp(params.bev_min_road_gray, 0, 255));
+  const cv::Mat road_mask = out.gray >= min_road;
+  out.gray.setTo(0, ~road_mask);
+  return out;
+}
+
+BevPreprocessResult preprocessBevForLaneDetection(
+  const cv::Mat & bev_bgr,
+  const PipelineParams & params)
+{
+  BevPreprocessResult out;
+  if (bev_bgr.empty()) {
+    return out;
+  }
+
+  cv::Mat bgr = prepareBevForDetection(bev_bgr, params);
+  if (bgr.channels() == 1) {
+    cv::cvtColor(bgr, out.display_bgr, cv::COLOR_GRAY2BGR);
+  } else {
+    out.display_bgr = bgr.clone();
+  }
+
+  cv::Mat work = out.display_bgr.clone();
+  if (params.bev_use_sharpen) {
+    const cv::Mat kernel = (cv::Mat_<float>(3, 3) <<
+      -1.f, -1.f, -1.f,
+      -1.f,  9.f, -1.f,
+      -1.f, -1.f, -1.f);
+    cv::filter2D(work, work, -1, kernel);
+  }
+
+  cv::Mat gray;
+  cv::cvtColor(work, gray, cv::COLOR_BGR2GRAY);
+
+  const int blur_k = params.bev_gaussian_blur_ksize;
+  if (blur_k >= 3) {
+    const int k = blur_k | 1;
+    cv::GaussianBlur(gray, gray, cv::Size(k, k), 0.0);
+  }
+
+  const uchar min_road = static_cast<uchar>(std::clamp(params.bev_min_road_gray, 0, 255));
+  cv::Mat road_mask = gray >= min_road;
+
+  // Grayscale keeps lane paint gradients for EdgeExtractor (Sobel / steerable bank).
+  cv::Mat detect = gray.clone();
+  detect.setTo(0, ~road_mask);
+
+  cv::Mat filtered_debug = detect.clone();
+  if (params.bev_use_otsu) {
+    cv::Mat otsu_binary;
+    out.otsu_threshold = EdgeExtractor::otsuThresholdMasked(gray, road_mask, otsu_binary);
+    filtered_debug = otsu_binary;
+
+    const int open_px = params.bev_morph_open_px;
+    if (open_px >= 3) {
+      const int k = open_px | 1;
+      const cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(k, k));
+      cv::morphologyEx(filtered_debug, filtered_debug, cv::MORPH_OPEN, kernel);
+      filtered_debug.setTo(0, ~road_mask);
+    }
+
+    if (params.bev_otsu_for_detection) {
+      detect = filtered_debug.clone();
+    }
+  }
+
+  out.detect_image = detect;
+  out.filtered_debug = filtered_debug;
+  return out;
 }
 
 std::vector<EdgePoint> filterBorderEdges(
@@ -226,18 +316,23 @@ LaneHypothesis pickBestSeed(
   const PipelineParams & params,
   double image_height)
 {
+  // Rank all seeds cheaply with the raw RANSAC consensus (no Ceres), then pay
+  // for the expensive non-linear refinement on the single winner only. Fitting
+  // every seed fully wasted most of the Ceres work on hypotheses that are
+  // immediately discarded.
   std::vector<LaneHypothesis> fitted(seeds.size());
   tbb::parallel_for(
     tbb::blocked_range<size_t>(0, seeds.size()),
     [&](const tbb::blocked_range<size_t> & range) {
       for (size_t i = range.begin(); i != range.end(); ++i) {
-        fitted[i] = ransac.fit(seeds[i], edges);
+        fitted[i] = ransac.fit(seeds[i], edges, /*refine=*/false);
       }
     });
 
-  LaneHypothesis best;
+  int best_idx = -1;
   double best_metric = -1.0;
-  for (const auto & hyp : fitted) {
+  for (size_t i = 0; i < fitted.size(); ++i) {
+    const auto & hyp = fitted[i];
     if (!passesQualityGate(hyp, params, image_height)) {
       continue;
     }
@@ -247,10 +342,22 @@ LaneHypothesis pickBestSeed(
     const double metric = hyp.score * hyp.inlier_ratio;
     if (metric > best_metric) {
       best_metric = metric;
-      best = hyp;
+      best_idx = static_cast<int>(i);
     }
   }
-  best.score = best_metric;
+
+  if (best_idx < 0) {
+    return LaneHypothesis{};
+  }
+
+  // Full refinement on the winning seed, then re-validate.
+  LaneHypothesis best = ransac.fit(seeds[static_cast<size_t>(best_idx)], edges, /*refine=*/true);
+  if (!passesQualityGate(best, params, image_height) ||
+    isTooCloseToExisting(best, accepted, params.min_lane_separation_px))
+  {
+    return LaneHypothesis{};
+  }
+  best.score = best.score * best.inlier_ratio;
   return best;
 }
 

@@ -15,6 +15,12 @@ public:
 
   std::vector<EdgePoint> extract(const cv::Mat & bev_bgr, cv::Mat * debug_edges = nullptr);
 
+  /// Otsu binarization on road pixels only; non-road stays 0. Returns Otsu T or -1 on failure.
+  static double otsuThresholdMasked(
+    const cv::Mat & gray,
+    const cv::Mat & road_mask,
+    cv::Mat & binary_out);
+
 private:
   PipelineParams params_;
   cv::Mat applySteerableBank(const cv::Mat & gray, cv::Mat * orientation = nullptr) const;

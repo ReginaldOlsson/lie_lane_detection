@@ -53,40 +53,66 @@ std::vector<Vec2> TemplateCurve::samplePolyline(const XiVector & xi, int num_sam
 
 double TemplateCurve::distanceToCurve(const XiVector & xi, const Vec2 & p, double * nearest_t) const
 {
-  constexpr int kCoarseSteps = 24;
-  double best_dist = std::numeric_limits<double>::max();
-  double best_t = 0.0;
-  int best_i = 0;
-  for (int i = 0; i <= kCoarseSteps; ++i) {
-    const double t = static_cast<double>(i) / static_cast<double>(kCoarseSteps);
-    const Vec2 q = sample(xi, t);
-    const double d = (p - q).norm();
-    if (d < best_dist) {
-      best_dist = d;
-      best_t = t;
-      best_i = i;
-    }
-  }
+  // Work in the SE(2)-local frame where the deformed template is an explicit
+  // quadratic in the curve parameter t:
+  //   x_c(t) = A t^2 + B t,   y_c(t) = y_min + y_span t,   yn == t
+  // with A = kappa * y_span, B = sigma * y_span. Rotation is an isometry, so the
+  // Euclidean distance is identical in the local and world frames. We seed t from
+  // the (linear) y-inversion and refine with a few Newton steps on d^2(t), which
+  // replaces the previous 36-sample brute-force scan (each an SE(2) multiply).
+  const Sophus::SE2d g = xiToSE2(xi);
+  const Vec2 p_local = g.inverse() * p;
+  return distanceInLocalFrame(p_local.x(), p_local.y(), xi[3], xi[4], nearest_t);
+}
 
-  constexpr int kFineSteps = 12;
-  const double t_lo = std::max(
-    0.0, static_cast<double>(best_i - 1) / static_cast<double>(kCoarseSteps));
-  const double t_hi = std::min(
-    1.0, static_cast<double>(best_i + 1) / static_cast<double>(kCoarseSteps));
-  for (int i = 0; i <= kFineSteps; ++i) {
-    const double t = t_lo + (t_hi - t_lo) * static_cast<double>(i) / static_cast<double>(kFineSteps);
-    const Vec2 q = sample(xi, t);
-    const double d = (p - q).norm();
-    if (d < best_dist) {
-      best_dist = d;
-      best_t = t;
+double TemplateCurve::distanceInLocalFrame(
+  double a, double b, double kappa, double sigma, double * nearest_t) const
+{
+  const double y_span = std::max(y_max_ - y_min_, 1e-6);
+  const double A = kappa * y_span;
+  const double B = sigma * y_span;
+
+  auto distSq = [&](double t) {
+    const double xc = (A * t + B) * t;
+    const double yc = y_min_ + y_span * t;
+    const double dx = a - xc;
+    const double dy = b - yc;
+    return dx * dx + dy * dy;
+  };
+
+  // Seed from the linear y-coordinate inversion, then refine with Newton on
+  // d^2(t). Since kappa/sigma are bounded small the objective is near-convex on
+  // [0, 1], so this converges to the true minimizer. We deliberately keep t a
+  // smooth (converged) function of xi (no discrete grid / endpoint-min branch):
+  // downstream Ceres residuals use sample(xi, t) and tangentAt(xi, t), and a
+  // discontinuous t breaks the numeric-diff Jacobians (notably along the lane's
+  // gauge-free longitudinal direction).
+  double t = std::clamp((b - y_min_) / y_span, 0.0, 1.0);
+  constexpr int kNewtonIters = 8;
+  for (int iter = 0; iter < kNewtonIters; ++iter) {
+    const double xc = (A * t + B) * t;
+    const double yc = y_min_ + y_span * t;
+    const double xc_p = 2.0 * A * t + B;   // x_c'(t)
+    const double yc_p = y_span;            // y_c'(t)
+    // d(d^2)/dt = 2[(xc-a) xc' + (yc-b) yc']
+    const double grad = (xc - a) * xc_p + (yc - b) * yc_p;
+    // d^2(d^2)/dt^2 = 2[xc'^2 + (xc-a) xc'' + yc'^2], with xc'' = 2A
+    const double hess = xc_p * xc_p + (xc - a) * (2.0 * A) + yc_p * yc_p;
+    if (std::abs(hess) < 1e-12) {
+      break;
+    }
+    const double t_new = std::clamp(t - grad / hess, 0.0, 1.0);
+    const double dt = t_new - t;
+    t = t_new;
+    if (std::abs(dt) < 1e-6) {
+      break;
     }
   }
 
   if (nearest_t) {
-    *nearest_t = best_t;
+    *nearest_t = t;
   }
-  return best_dist;
+  return std::sqrt(distSq(t));
 }
 
 Vec2 TemplateCurve::nearestPoint(const XiVector & xi, const Vec2 & p, double * nearest_t) const

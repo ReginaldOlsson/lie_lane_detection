@@ -1,6 +1,9 @@
 bev_lane_detector_node:
   ros__parameters:
     bev_topic: "/ipm/bev"
+    image_topic: "/camera/image_raw"
+    homography_topic: "/ipm/homography"
+    frontal_overlay_topic: "/lanes/detect/frontal_overlay"
     frame_id: "camera_front"
 
     use_steerable_filter: true
@@ -34,6 +37,14 @@ bev_lane_detector_node:
     sigma_max: 0.55
 
     bev_bottom_exclude_px: 200.0
+
+    # BEV preprocess: detection uses grayscale; Otsu is debug-only unless otsu_for_detection
+    bev_use_sharpen: false
+    bev_use_otsu: true
+    bev_otsu_for_detection: false
+    bev_gaussian_blur_ksize: 0
+    bev_morph_open_px: 0
+    bev_min_road_gray: 20
 
     use_longitudinal_line_filter: true
     longitudinal_max_deviation_rad: 0.52

@@ -109,6 +109,9 @@ std::vector<LaneHypothesis> LieHoughVoter::vote(
   };
 
   std::vector<XiVector> xi_stage_a(static_cast<size_t>(se2_cells));
+  // Per-bin inverse SE(2) pose, so an edge can be transformed into the local
+  // frame with a single multiply (the pose is shared by all deform presets).
+  std::vector<Sophus::SE2d> se2_inv_lut(static_cast<size_t>(se2_cells));
   std::vector<double> vx_lut(static_cast<size_t>(vx_bins));
   for (int ix = 0; ix < vx_bins; ++ix) {
     double vx = 0.0;
@@ -122,20 +125,29 @@ std::vector<LaneHypothesis> LieHoughVoter::vote(
     (void)omega;
     for (int iy = 0; iy < vy_bins; ++iy) {
       for (int io = 0; io < omega_bins; ++io) {
-        xi_stage_a[static_cast<size_t>(flatBinIndex(ix, iy, io, vx_bins, vy_bins))] =
-          binToXi(ix, iy, io, ik_mid, is_mid);
+        const int idx = flatBinIndex(ix, iy, io, vx_bins, vy_bins);
+        const XiVector xi = binToXi(ix, iy, io, ik_mid, is_mid);
+        xi_stage_a[static_cast<size_t>(idx)] = xi;
+        se2_inv_lut[static_cast<size_t>(idx)] = xiToSE2(xi).inverse();
       }
     }
   }
 
+  // (kappa, sigma) values for the deform presets (independent of the pose).
+  std::vector<std::pair<double, double>> preset_ks;
+  preset_ks.reserve(deform_presets.size());
+  for (const auto & [ik, is] : deform_presets) {
+    const XiVector xi = binToXi(0, 0, 0, ik, is);
+    preset_ks.emplace_back(xi[3], xi[4]);
+  }
+
   auto minDistanceSq = [&](int ix, int iy, int io, const Vec2 & p) {
+      const int idx = flatBinIndex(ix, iy, io, vx_bins, vy_bins);
+      const Vec2 pl = se2_inv_lut[static_cast<size_t>(idx)] * p;
       double best = std::numeric_limits<double>::max();
-      for (const auto & [ik, is] : deform_presets) {
-        const XiVector xi = binToXi(ix, iy, io, ik, is);
-        const Vec2 q = template_curve_->nearestPoint(xi, p);
-        const double ddx = p.x() - q.x();
-        const double ddy = p.y() - q.y();
-        best = std::min(best, ddx * ddx + ddy * ddy);
+      for (const auto & [kappa, sigma] : preset_ks) {
+        const double d = template_curve_->distanceInLocalFrame(pl.x(), pl.y(), kappa, sigma);
+        best = std::min(best, d * d);
       }
       return best;
     };
@@ -236,12 +248,48 @@ std::vector<LaneHypothesis> LieHoughVoter::vote(
   tbb::parallel_for(
     tbb::blocked_range<size_t>(0, selected_se2.size()),
     [&](const tbb::blocked_range<size_t> & range) {
+      // (a=lateral, b=forward) local-frame edge coords + magnitude, reused
+      // across all (kappa,sigma) bins of a peak.
+      struct LocalEdge
+      {
+        double a;
+        double b;
+        double mag;
+      };
+      std::vector<LocalEdge> local_edges;
+
       for (size_t pi = range.begin(); pi != range.end(); ++pi) {
         const SE2Peak & se2_peak = selected_se2[pi];
         double best_votes = 0.0;
         XiVector best_xi = se2_peak.xi;
         const int ix_lo = std::max(0, se2_peak.ix - 1);
         const int ix_hi = std::min(vx_bins - 1, se2_peak.ix + 1);
+
+        // The SE(2) pose is identical for every (kappa,sigma) bin of this peak,
+        // so transform the gated edges into the local frame exactly once instead
+        // of recomputing xiToSE2()/inverse() inside the innermost bin loop.
+        const double x_gate_lo = vx_lut[static_cast<size_t>(ix_lo)] - vote_thresh;
+        const double x_gate_hi = vx_lut[static_cast<size_t>(ix_hi)] + vote_thresh;
+        const Sophus::SE2d g_inv = xiToSE2(se2_peak.xi).inverse();
+        local_edges.clear();
+        for (const auto & edge : edges) {
+          if (edge.x < x_gate_lo || edge.x > x_gate_hi) {
+            continue;
+          }
+          const Vec2 pl = g_inv * Vec2(edge.x, edge.y);
+          local_edges.push_back({pl.x(), pl.y(), edge.magnitude});
+        }
+
+        auto tallyVotes = [&](double kappa, double sigma) {
+            double votes = 0.0;
+            for (const auto & le : local_edges) {
+              const double d = template_curve_->distanceInLocalFrame(le.a, le.b, kappa, sigma);
+              if (d * d < vote_thresh_sq) {
+                votes += le.mag;
+              }
+            }
+            return votes;
+          };
 
         int best_ik = 0;
         int best_is = 0;
@@ -251,21 +299,7 @@ std::vector<LaneHypothesis> LieHoughVoter::vote(
         for (int ik = 0; ik < params_.kappa_bins; ++ik) {
           for (int is = 0; is < params_.sigma_bins; ++is) {
             XiVector xi = binToXi(se2_peak.ix, se2_peak.iy, se2_peak.io, ik, is);
-            double votes = 0.0;
-            for (const auto & edge : edges) {
-              if (edge.x < vx_lut[static_cast<size_t>(ix_lo)] - vote_thresh ||
-                edge.x > vx_lut[static_cast<size_t>(ix_hi)] + vote_thresh)
-              {
-                continue;
-              }
-              const Vec2 p(edge.x, edge.y);
-              const Vec2 q = template_curve_->nearestPoint(xi, p);
-              const double ddx = p.x() - q.x();
-              const double ddy = p.y() - q.y();
-              if (ddx * ddx + ddy * ddy < vote_thresh_sq) {
-                votes += edge.magnitude;
-              }
-            }
+            const double votes = tallyVotes(xi[3], xi[4]);
             vote_bins.emplace_back(xi, votes);
             if (votes > best_votes) {
               best_votes = votes;
@@ -301,21 +335,7 @@ std::vector<LaneHypothesis> LieHoughVoter::vote(
               continue;
             }
             XiVector xi = binToXi(se2_peak.ix, se2_peak.iy, se2_peak.io, ik, is);
-            double votes = 0.0;
-            for (const auto & edge : edges) {
-              if (edge.x < vx_lut[static_cast<size_t>(ix_lo)] - vote_thresh ||
-                edge.x > vx_lut[static_cast<size_t>(ix_hi)] + vote_thresh)
-              {
-                continue;
-              }
-              const Vec2 p(edge.x, edge.y);
-              const Vec2 q = template_curve_->nearestPoint(xi, p);
-              const double ddx = p.x() - q.x();
-              const double ddy = p.y() - q.y();
-              if (ddx * ddx + ddy * ddy < vote_thresh_sq) {
-                votes += edge.magnitude;
-              }
-            }
+            const double votes = tallyVotes(xi[3], xi[4]);
             if (votes > best_votes) {
               best_votes = votes;
               best_xi = xi;
