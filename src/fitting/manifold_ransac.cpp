@@ -196,8 +196,15 @@ LaneHypothesis ManifoldRansac::fit(
     std::vector<bool> mask;
   };
 
+  // The seed-ranking pass (refine=false) only needs an approximate consensus to
+  // compare candidates, so it runs a fraction of the iterations; the winning
+  // seed is re-fit with the full budget before refinement.
+  const int ransac_iters = refine
+    ? params_.ransac_iterations
+    : std::max(24, params_.ransac_iterations / 4);
+
   const RansacBest best_state = tbb::parallel_reduce(
-    tbb::blocked_range<int>(0, params_.ransac_iterations),
+    tbb::blocked_range<int>(0, ransac_iters),
     RansacBest{},
     [&](const tbb::blocked_range<int> & range, RansacBest local) {
       std::mt19937 rng(static_cast<unsigned>(42 + range.begin()));
