@@ -2,11 +2,43 @@ cmake_minimum_required(VERSION 3.8)
 project(lie_lane_detection)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic)
+  # Scope strict warnings to C++ only so nvcc is not handed -Wpedantic etc.
+  add_compile_options(
+    $<$<COMPILE_LANGUAGE:CXX>:-Wall>
+    $<$<COMPILE_LANGUAGE:CXX>:-Wextra>
+    $<$<COMPILE_LANGUAGE:CXX>:-Wpedantic>)
 endif()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# --- Optional CUDA (custom Lie-Hough voting kernels) ---
+# Enabled when the CUDA toolkit is found. Falls back to a CPU-only build
+# otherwise, so the package still compiles on machines without CUDA.
+option(LIE_USE_CUDA "Build custom CUDA voting kernels when a toolkit is available" ON)
+set(LIE_CUDA_ENABLED FALSE)
+if(LIE_USE_CUDA)
+  include(CheckLanguage)
+  find_package(CUDAToolkit QUIET)
+  if(CUDAToolkit_FOUND)
+    # CUDA 12.0's host_config caps at gcc-12; pin it if the default is newer.
+    if(NOT DEFINED CMAKE_CUDA_HOST_COMPILER AND EXISTS /usr/bin/g++-12)
+      set(CMAKE_CUDA_HOST_COMPILER /usr/bin/g++-12)
+    endif()
+    check_language(CUDA)
+    if(CMAKE_CUDA_COMPILER)
+      enable_language(CUDA)
+      if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+        set(CMAKE_CUDA_ARCHITECTURES 89)  # Ada (RTX 40-series); override if needed
+      endif()
+      set(LIE_CUDA_ENABLED TRUE)
+      message(STATUS "lie_lane_detection: CUDA enabled (arch ${CMAKE_CUDA_ARCHITECTURES}, host ${CMAKE_CUDA_HOST_COMPILER})")
+    endif()
+  endif()
+  if(NOT LIE_CUDA_ENABLED)
+    message(STATUS "lie_lane_detection: CUDA toolkit not found - building CPU-only")
+  endif()
+endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -69,7 +101,21 @@ set(CORE_SOURCES
   src/testing/synthetic_bev_generator.cpp
 )
 
+if(LIE_CUDA_ENABLED)
+  list(APPEND CORE_SOURCES src/voting/cuda_voting.cu)
+endif()
+
 add_library(lie_lane_detection_core SHARED ${CORE_SOURCES})
+
+if(LIE_CUDA_ENABLED)
+  target_compile_definitions(lie_lane_detection_core PUBLIC LIE_HAS_CUDA)
+  # Resolve device symbols into the shared library so pure-C++ consumers
+  # (nodes, tools, tests) link without needing a CUDA device-link step.
+  set_target_properties(lie_lane_detection_core PROPERTIES
+    CUDA_SEPARABLE_COMPILATION ON
+    CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+  target_link_libraries(lie_lane_detection_core CUDA::cudart)
+endif()
 target_include_directories(lie_lane_detection_core PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
@@ -276,6 +322,11 @@ if(BUILD_TESTING)
 
   ament_add_gtest(test_road_manifold_fitter test/fitting/test_road_manifold_fitter.cpp)
   target_link_libraries(test_road_manifold_fitter lie_lane_detection_core)
+
+  if(LIE_CUDA_ENABLED)
+    ament_add_gtest(test_cuda_voting test/voting/test_cuda_voting.cpp)
+    target_link_libraries(test_cuda_voting lie_lane_detection_core)
+  endif()
 endif()
 
 ament_package()

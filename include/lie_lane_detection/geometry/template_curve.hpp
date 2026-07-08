@@ -38,6 +38,15 @@ public:
 
   double lateralAtY(const XiVector & xi, double y) const;
 
+  /// Local-frame forward-axis origin and span used by distanceInLocalFrame.
+  /// Exposed so GPU kernels can replicate the exact template geometry.
+  double localFrameYMin() const {return y_min_;}
+  double localFrameYSpan() const
+  {
+    const double span = y_max_ - y_min_;
+    return span > 1e-6 ? span : 1e-6;
+  }
+
 private:
   PipelineParams params_;
   double y_min_{0.0};

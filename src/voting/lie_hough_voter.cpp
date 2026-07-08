@@ -12,6 +12,11 @@
 #include "lie_lane_detection/common/parallel.hpp"
 #include "lie_lane_detection/voting/sparse_accumulator.hpp"
 
+#ifdef LIE_HAS_CUDA
+#include <cstdlib>
+#include "lie_lane_detection/voting/cuda_voting.hpp"
+#endif
+
 namespace lie_lane_detection
 {
 
@@ -78,6 +83,22 @@ inline int vxSearchRadius(double vote_threshold_px, int vx_bins, double vx_min, 
     (vx_max - vx_min) / static_cast<double>(std::max(vx_bins - 1, 1));
   return std::max(1, static_cast<int>(std::ceil(vote_threshold_px / bin_width)) + 1);
 }
+
+#ifdef LIE_HAS_CUDA
+// GPU Stage A is used when built with CUDA, a device is present, and the user
+// has not disabled it via LIE_LANE_DISABLE_CUDA (set to anything but 0/empty).
+bool cudaVotingEnabled()
+{
+  static const bool enabled = [] {
+      const char * disable = std::getenv("LIE_LANE_DISABLE_CUDA");
+      if (disable && disable[0] != '\0' && disable[0] != '0') {
+        return false;
+      }
+      return cuda::isAvailable();
+    }();
+  return enabled;
+}
+#endif
 
 }  // namespace
 
@@ -160,36 +181,99 @@ std::vector<LaneHypothesis> LieHoughVoter::vote(
       return a;
     };
 
-  // Stage A: localized SE(2) voting (TBB parallel_reduce).
-  se2_accum = tbb::parallel_reduce(
-    tbb::blocked_range<size_t>(0, edges.size()),
-    std::vector<double>(static_cast<size_t>(se2_cells), 0.0),
-    [&](const tbb::blocked_range<size_t> & range, std::vector<double> local) {
-      for (size_t ei = range.begin(); ei != range.end(); ++ei) {
-        const EdgePoint & edge = edges[ei];
-        const Vec2 p(edge.x, edge.y);
-        const int ix_center = vxBinForX(edge.x, vx_bins, vx_min, vx_max);
-        const int ix_lo = std::max(0, ix_center - ix_radius);
-        const int ix_hi = std::min(vx_bins - 1, ix_center + ix_radius);
+  // Stage A: localized SE(2) voting. Prefer the GPU kernel when available;
+  // otherwise use the TBB parallel_reduce below. Both produce the same accum.
+  bool stage_a_done = false;
+#ifdef LIE_HAS_CUDA
+  if (cudaVotingEnabled() && !edges.empty()) {
+    // Flatten the per-bin inverse pose LUT to [R00,R01,R10,R11,tx,ty] per cell,
+    // matching cuda_voting.cu's expected layout and index order.
+    std::vector<float> lut_flat(static_cast<size_t>(se2_cells) * 6);
+    for (int i = 0; i < se2_cells; ++i) {
+      const Sophus::SE2d & g = se2_inv_lut[static_cast<size_t>(i)];
+      const Eigen::Matrix2d R = g.rotationMatrix();
+      const Vec2 t = g.translation();
+      float * dst = lut_flat.data() + static_cast<size_t>(i) * 6;
+      dst[0] = static_cast<float>(R(0, 0));
+      dst[1] = static_cast<float>(R(0, 1));
+      dst[2] = static_cast<float>(R(1, 0));
+      dst[3] = static_cast<float>(R(1, 1));
+      dst[4] = static_cast<float>(t.x());
+      dst[5] = static_cast<float>(t.y());
+    }
 
-        for (int ix = ix_lo; ix <= ix_hi; ++ix) {
-          const double dx = edge.x - vx_lut[static_cast<size_t>(ix)];
-          if (std::abs(dx) > vote_thresh * 1.5) {
-            continue;
-          }
-          for (int iy = 0; iy < vy_bins; ++iy) {
-            for (int io = 0; io < omega_bins; ++io) {
-              const int idx = flatBinIndex(ix, iy, io, vx_bins, vy_bins);
-              if (minDistanceSq(ix, iy, io, p) < vote_thresh_sq) {
-                local[static_cast<size_t>(idx)] += edge.magnitude;
+    std::vector<float> ex(edges.size());
+    std::vector<float> ey(edges.size());
+    std::vector<float> emag(edges.size());
+    for (size_t i = 0; i < edges.size(); ++i) {
+      ex[i] = static_cast<float>(edges[i].x);
+      ey[i] = static_cast<float>(edges[i].y);
+      emag[i] = static_cast<float>(edges[i].magnitude);
+    }
+
+    std::vector<float> vx_lut_f(static_cast<size_t>(vx_bins));
+    for (int ix = 0; ix < vx_bins; ++ix) {
+      vx_lut_f[static_cast<size_t>(ix)] = static_cast<float>(vx_lut[static_cast<size_t>(ix)]);
+    }
+
+    std::vector<float> preset_kappa;
+    std::vector<float> preset_sigma;
+    preset_kappa.reserve(preset_ks.size());
+    preset_sigma.reserve(preset_ks.size());
+    for (const auto & [kappa, sigma] : preset_ks) {
+      preset_kappa.push_back(static_cast<float>(kappa));
+      preset_sigma.push_back(static_cast<float>(sigma));
+    }
+
+    cuda::StageAConfig cfg;
+    cfg.vx_bins = vx_bins;
+    cfg.vy_bins = vy_bins;
+    cfg.omega_bins = omega_bins;
+    cfg.num_presets = static_cast<int>(preset_ks.size());
+    cfg.ix_radius = ix_radius;
+    cfg.vx_min = static_cast<float>(vx_min);
+    cfg.vx_max = static_cast<float>(vx_max);
+    cfg.y_min = static_cast<float>(template_curve_->localFrameYMin());
+    cfg.y_span = static_cast<float>(template_curve_->localFrameYSpan());
+    cfg.vote_thresh = static_cast<float>(vote_thresh);
+
+    stage_a_done = cuda::stageAVote(
+      cfg, ex, ey, emag, lut_flat, vx_lut_f, preset_kappa, preset_sigma, se2_accum);
+  }
+#endif
+
+  if (!stage_a_done) {
+    // Stage A (CPU): localized SE(2) voting (TBB parallel_reduce).
+    se2_accum = tbb::parallel_reduce(
+      tbb::blocked_range<size_t>(0, edges.size()),
+      std::vector<double>(static_cast<size_t>(se2_cells), 0.0),
+      [&](const tbb::blocked_range<size_t> & range, std::vector<double> local) {
+        for (size_t ei = range.begin(); ei != range.end(); ++ei) {
+          const EdgePoint & edge = edges[ei];
+          const Vec2 p(edge.x, edge.y);
+          const int ix_center = vxBinForX(edge.x, vx_bins, vx_min, vx_max);
+          const int ix_lo = std::max(0, ix_center - ix_radius);
+          const int ix_hi = std::min(vx_bins - 1, ix_center + ix_radius);
+
+          for (int ix = ix_lo; ix <= ix_hi; ++ix) {
+            const double dx = edge.x - vx_lut[static_cast<size_t>(ix)];
+            if (std::abs(dx) > vote_thresh * 1.5) {
+              continue;
+            }
+            for (int iy = 0; iy < vy_bins; ++iy) {
+              for (int io = 0; io < omega_bins; ++io) {
+                const int idx = flatBinIndex(ix, iy, io, vx_bins, vy_bins);
+                if (minDistanceSq(ix, iy, io, p) < vote_thresh_sq) {
+                  local[static_cast<size_t>(idx)] += edge.magnitude;
+                }
               }
             }
           }
         }
-      }
-      return local;
-    },
-    merge_accum);
+        return local;
+      },
+      merge_accum);
+  }
 
   std::vector<SE2Peak> se2_peaks;
   se2_peaks.reserve(static_cast<size_t>(se2_cells / 8));
