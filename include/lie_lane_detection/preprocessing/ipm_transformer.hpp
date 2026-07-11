@@ -55,4 +55,11 @@ void drawIpmMetricDstOnImage(
   const cv::Scalar & color = cv::Scalar(255, 0, 255),
   int thickness = 2);
 
+/// Mask (255 = exclude) for IPM trapezoid borders and bottom hood cut artifacts on BEV.
+cv::Mat buildIpmBevArtifactExclusionMask(
+  const cv::Size & bev_size,
+  const cv::Mat & H_img2bev,
+  const PipelineParams & params,
+  int border_band_px = 0);
+
 }  // namespace lie_lane_detection

@@ -36,6 +36,13 @@ void maskBevBottomForDetection(cv::Mat & bev_bgr, const PipelineParams & params)
 /// Clone BEV and mask bottom exclude region when enabled.
 cv::Mat prepareBevForDetection(const cv::Mat & bev_bgr, const PipelineParams & params);
 
+/// Filter BEV edge debug image: threshold, road mask, exclude IPM trapezoid + bottom cut.
+cv::Mat filterBevEdgeArtifacts(
+  const cv::Mat & edges_gray,
+  const cv::Mat & bev_bgr,
+  const PipelineParams & params,
+  const cv::Mat & H_img2bev = cv::Mat());
+
 struct BevTrackingPrep
 {
   cv::Mat display_bgr;

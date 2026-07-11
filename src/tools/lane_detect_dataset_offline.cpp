@@ -102,6 +102,7 @@ int main(int argc, char ** argv)
   bool force_auto_ipm = false;
   bool auto_ground_ipm = false;
   bool show_windows = false;
+  bool wait_ms_set = false;
   int wait_ms = 0;
 
   for (int i = 1; i < argc; ++i) {
@@ -130,6 +131,7 @@ int main(int argc, char ** argv)
       show_windows = true;
     } else if (arg == "--wait-ms" && i + 1 < argc) {
       wait_ms = std::stoi(argv[++i]);
+      wait_ms_set = true;
     } else if (arg == "--help" || arg == "-h") {
       std::cout <<
         "Usage: lane_detect_dataset_offline --dataset BOREAS_SEQ | --images CAMERA_DIR\n"
@@ -143,7 +145,7 @@ int main(int argc, char ** argv)
         "  --stride        Process every Nth frame (default 30)\n"
         "  --max-frames    Cap processed frames (default 30)\n"
         "  --show          cv::imshow per frame (edges/ipm_overlay/frontal_overlay)\n"
-        "  --wait-ms N     waitKey delay per frame (0=step with any key)\n"
+        "  --wait-ms N     waitKey delay per frame (default 1 with --show; 0=step)\n"
         "  --no-video      Skip overlay MP4\n";
       return 0;
     }
@@ -168,6 +170,10 @@ int main(int argc, char ** argv)
   if (all_images.empty()) {
     std::cerr << "No images in " << images_dir << "\n";
     return 1;
+  }
+
+  if (show_windows && !wait_ms_set) {
+    wait_ms = 1;
   }
 
   fs::create_directories(output_dir);
@@ -335,9 +341,9 @@ int main(int argc, char ** argv)
     cv::Mat bev_vis = bev.clone();
     lie::drawIpmRoiOnBev(bev_vis, H_img2bev, params);
     cv::imwrite((output_dir / "frames" / (stem + "_bev.png")).string(), bev_vis);
-    const cv::Mat edge_view = lie::offline_display::composeEdgeView(bev, det.edges);
-    cv::Mat edge_vis = edge_view.clone();
-    lie::drawIpmRoiOnBev(edge_vis, H_img2bev, params);
+    const cv::Mat filtered_edges =
+      lie::filterBevEdgeArtifacts(det.edges, bev, params, H_img2bev);
+    const cv::Mat edge_vis = lie::offline_display::composeCleanEdgeView(filtered_edges);
     cv::imwrite((output_dir / "frames" / (stem + "_edges.png")).string(), edge_vis);
     cv::imwrite((output_dir / "frames" / (stem + "_overlay.png")).string(), overlay);
     cv::imwrite((output_dir / "frames" / (stem + "_frontal_overlay.png")).string(), frontal_overlay);
@@ -371,7 +377,6 @@ int main(int argc, char ** argv)
       lie::offline_display::show("edges", edge_vis);
       lie::offline_display::show("ipm_overlay", overlay);
       lie::offline_display::show("frontal_overlay", frontal_overlay);
-      std::cout << "  imshow: any key=next, q/Esc=stop\n";
       if (!lie::offline_display::wait(wait_ms)) {
         break;
       }

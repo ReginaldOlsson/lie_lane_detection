@@ -8,6 +8,7 @@
 #include "lie_lane_detection/common/parallel.hpp"
 #include "lie_lane_detection/geometry/template_curve.hpp"
 #include "lie_lane_detection/preprocessing/edge_extractor.hpp"
+#include "lie_lane_detection/preprocessing/ipm_transformer.hpp"
 
 namespace lie_lane_detection
 {
@@ -110,6 +111,58 @@ cv::Mat prepareBevForDetection(const cv::Mat & bev_bgr, const PipelineParams & p
   cv::Mat masked = bev_bgr.clone();
   maskBevBottomForDetection(masked, params);
   return masked;
+}
+
+cv::Mat filterBevEdgeArtifacts(
+  const cv::Mat & edges_gray,
+  const cv::Mat & bev_bgr,
+  const PipelineParams & params,
+  const cv::Mat & H_img2bev)
+{
+  if (edges_gray.empty()) {
+    return cv::Mat();
+  }
+
+  cv::Mat edges;
+  if (edges_gray.channels() > 1) {
+    cv::cvtColor(edges_gray, edges, cv::COLOR_BGR2GRAY);
+  } else {
+    edges = edges_gray.clone();
+  }
+
+  const uchar thresh = static_cast<uchar>(std::clamp(params.edge_low_threshold, 1.0, 255.0));
+  cv::threshold(edges, edges, thresh - 1, 255, cv::THRESH_BINARY);
+
+  cv::Mat keep = cv::Mat::ones(edges.size(), CV_8U) * 255;
+
+  if (!bev_bgr.empty() && bev_bgr.size() == edges.size()) {
+    cv::Mat gray;
+    if (bev_bgr.channels() == 3) {
+      cv::cvtColor(bev_bgr, gray, cv::COLOR_BGR2GRAY);
+    } else {
+      gray = bev_bgr;
+    }
+    const uchar road_min = static_cast<uchar>(std::clamp(params.bev_min_road_gray, 0, 255));
+    keep.setTo(0, gray < road_min);
+  }
+
+  if (!H_img2bev.empty()) {
+    const cv::Mat exclude = buildIpmBevArtifactExclusionMask(edges.size(), H_img2bev, params);
+    if (!exclude.empty()) {
+      keep.setTo(0, exclude > 0);
+    }
+  } else {
+    const int mask_rows = bevBottomMaskRows(params);
+    const int band = std::max(8, std::min(edges.cols, edges.rows) / 80);
+    if (mask_rows > 0) {
+      const int y0 = std::max(0, edges.rows - mask_rows - band);
+      keep.rowRange(y0, edges.rows).setTo(0);
+    }
+  }
+
+  cv::Mat filtered = cv::Mat::zeros(edges.size(), CV_8U);
+  edges.copyTo(filtered, keep);
+  return filtered;
 }
 
 BevTrackingPrep prepareBevGrayForTracking(

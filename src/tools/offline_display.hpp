@@ -66,6 +66,21 @@ inline cv::Mat composeEdgeView(const cv::Mat & bev_bgr, const cv::Mat & edges_gr
   return base;
 }
 
+/// Lane edges on black background (artifact-filtered debug view).
+inline cv::Mat composeCleanEdgeView(const cv::Mat & edges_gray)
+{
+  if (edges_gray.empty()) {
+    return cv::Mat();
+  }
+  cv::Mat gray = edges_gray;
+  if (edges_gray.channels() > 1) {
+    cv::cvtColor(edges_gray, gray, cv::COLOR_BGR2GRAY);
+  }
+  cv::Mat out = cv::Mat::zeros(gray.size(), CV_8UC3);
+  out.setTo(cv::Scalar(0, 255, 255), gray > 0);
+  return out;
+}
+
 inline void show(const std::string & window, const cv::Mat & img)
 {
   if (img.empty()) {

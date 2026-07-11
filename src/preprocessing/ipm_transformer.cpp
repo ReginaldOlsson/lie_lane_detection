@@ -247,4 +247,54 @@ void drawIpmMetricDstOnImage(
   cv::polylines(image_bgr, std::vector<std::vector<cv::Point>>{poly}, true, color, thickness);
 }
 
+cv::Mat buildIpmBevArtifactExclusionMask(
+  const cv::Size & bev_size,
+  const cv::Mat & H_img2bev,
+  const PipelineParams & params,
+  int border_band_px)
+{
+  if (bev_size.width <= 0 || bev_size.height <= 0) {
+    return cv::Mat();
+  }
+  const int band = border_band_px > 0 ?
+    border_band_px :
+    std::max(8, std::min(bev_size.width, bev_size.height) / 80);
+  const int thickness = std::max(3, band * 2 + 1);
+
+  cv::Mat exclude = cv::Mat::zeros(bev_size, CV_8U);
+
+  int mask_rows = 0;
+  const double exclude_px = std::max(0.0, params.bev_bottom_exclude_px);
+  if (exclude_px > 0.0) {
+    const double margin = std::max(0.0, params.bev_bottom_edge_margin_px);
+    mask_rows = static_cast<int>(std::round(exclude_px + margin));
+  }
+  if (mask_rows > 0) {
+    const int y0 = std::max(0, bev_size.height - mask_rows - band);
+    exclude.rowRange(y0, bev_size.height).setTo(255);
+  }
+
+  auto stamp_polyline = [&](const std::vector<cv::Point2f> & corners) {
+    if (corners.size() != 4) {
+      return;
+    }
+    const std::vector<cv::Point> poly = toPointPoly(corners);
+    cv::polylines(exclude, std::vector<std::vector<cv::Point>>{poly}, true, cv::Scalar(255), thickness);
+  };
+
+  if (!H_img2bev.empty() && params.ipm_src_points.size() >= 8) {
+    std::vector<cv::Point2f> src_corners;
+    if (ipmSrcBevCorners(H_img2bev, params, src_corners)) {
+      stamp_polyline(src_corners);
+    }
+  }
+  stamp_polyline(ipmMetricDstBevCorners(params));
+
+  if (band > 2) {
+    const cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(band, band));
+    cv::dilate(exclude, exclude, kernel);
+  }
+  return exclude;
+}
+
 }  // namespace lie_lane_detection
