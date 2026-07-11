@@ -28,6 +28,11 @@ struct StageAConfig
   float y_min{0.0f};
   float y_span{1.0f};
   float vote_thresh{0.0f};
+  // Soft (Gaussian) voting: weight each in-gate contribution by
+  // exp(-d^2 * inv_two_sigma_sq). When soft_voting == 0 the vote is the raw
+  // magnitude (hard threshold).
+  int soft_voting{0};
+  float inv_two_sigma_sq{0.0f};
 };
 
 /// GPU implementation of Lie-Hough Stage A localized SE(2) accumulation.

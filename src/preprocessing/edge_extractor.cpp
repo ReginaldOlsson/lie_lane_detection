@@ -1,5 +1,6 @@
 #include "lie_lane_detection/preprocessing/edge_extractor.hpp"
 
+#include <algorithm>
 #include <vector>
 
 #include <opencv2/imgproc.hpp>
@@ -153,6 +154,9 @@ std::vector<EdgePoint> EdgeExtractor::extract(const cv::Mat & bev_bgr, cv::Mat *
   std::vector<cv::Point> nonzero;
   cv::findNonZero(mag_u8, nonzero);
 
+  const bool subpixel = params_.use_subpixel_edges && !magnitude.empty();
+  const int mag_cols = magnitude.cols;
+
   std::vector<EdgePoint> edges(nonzero.size());
   tbb::parallel_for(
     tbb::blocked_range<size_t>(0, nonzero.size()),
@@ -165,6 +169,21 @@ std::vector<EdgePoint> EdgeExtractor::extract(const cv::Mat & bev_bgr, cv::Mat *
         ep.magnitude = static_cast<double>(mag_u8.at<uchar>(pt.y, pt.x));
         if (!orientation.empty()) {
           ep.orientation = orientation.at<float>(pt.y, pt.x);
+        }
+        // BEV lanes are ~vertical, so lateral (x) precision drives fit quality.
+        // Refine x with a parabolic peak fit on the gradient magnitude profile
+        // across the 3 horizontal neighbours.
+        if (subpixel && pt.x > 0 && pt.x < mag_cols - 1) {
+          const float * mrow = magnitude.ptr<float>(pt.y);
+          const float ml = mrow[pt.x - 1];
+          const float mc = mrow[pt.x];
+          const float mr = mrow[pt.x + 1];
+          const float denom = ml - 2.0f * mc + mr;
+          if (denom < -1e-6f) {  // concave-down => interior peak
+            float offset = 0.5f * (ml - mr) / denom;
+            offset = std::clamp(offset, -1.0f, 1.0f);
+            ep.x += static_cast<double>(offset);
+          }
         }
         edges[i] = ep;
       }

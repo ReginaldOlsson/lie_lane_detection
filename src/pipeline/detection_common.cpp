@@ -66,28 +66,49 @@ bool passesQualityGate(
 double bevEffectiveYMax(int bev_rows, const PipelineParams & params)
 {
   const double exclude = std::max(0.0, params.bev_bottom_exclude_px);
-  return std::max(1.0, static_cast<double>(bev_rows) - exclude);
+  const double margin = std::max(0.0, params.bev_bottom_edge_margin_px);
+  return std::max(1.0, static_cast<double>(bev_rows) - exclude - margin);
 }
 
-void maskBevBottomExclude(cv::Mat & bev_bgr, const PipelineParams & params)
+int bevBottomMaskRows(const PipelineParams & params)
 {
-  const int exclude = static_cast<int>(std::round(std::max(0.0, params.bev_bottom_exclude_px)));
-  if (exclude <= 0 || bev_bgr.empty()) {
+  const double exclude = std::max(0.0, params.bev_bottom_exclude_px);
+  if (exclude <= 0.0) {
+    return 0;
+  }
+  const double margin = std::max(0.0, params.bev_bottom_edge_margin_px);
+  return static_cast<int>(std::round(exclude + margin));
+}
+
+void maskBevBottomRows(cv::Mat & bev_bgr, int mask_rows)
+{
+  if (mask_rows <= 0 || bev_bgr.empty()) {
     return;
   }
-  const int y0 = std::max(0, bev_bgr.rows - exclude);
+  const int y0 = std::max(0, bev_bgr.rows - mask_rows);
   if (y0 < bev_bgr.rows) {
     bev_bgr.rowRange(y0, bev_bgr.rows).setTo(cv::Scalar(0, 0, 0));
   }
 }
 
+void maskBevBottomExclude(cv::Mat & bev_bgr, const PipelineParams & params)
+{
+  const int exclude = static_cast<int>(std::round(std::max(0.0, params.bev_bottom_exclude_px)));
+  maskBevBottomRows(bev_bgr, exclude);
+}
+
+void maskBevBottomForDetection(cv::Mat & bev_bgr, const PipelineParams & params)
+{
+  maskBevBottomRows(bev_bgr, bevBottomMaskRows(params));
+}
+
 cv::Mat prepareBevForDetection(const cv::Mat & bev_bgr, const PipelineParams & params)
 {
-  if (params.bev_bottom_exclude_px <= 0.0 || bev_bgr.empty()) {
+  if (bevBottomMaskRows(params) <= 0 || bev_bgr.empty()) {
     return bev_bgr;
   }
   cv::Mat masked = bev_bgr.clone();
-  maskBevBottomExclude(masked, params);
+  maskBevBottomForDetection(masked, params);
   return masked;
 }
 

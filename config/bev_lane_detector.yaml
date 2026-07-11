@@ -10,8 +10,8 @@ bev_lane_detector_node:
     connect_dashed_edges: true
     edge_anisotropic_blur: true
     edge_thin: true
-    edge_low_threshold: 28.0
-    edge_high_threshold: 75.0
+    edge_low_threshold: 25.0
+    edge_high_threshold: 55.0
 
     top_k_peaks: 6
     max_lane_hypotheses: 8
@@ -36,11 +36,12 @@ bev_lane_detector_node:
     sigma_min: -0.55
     sigma_max: 0.55
 
-    bev_bottom_exclude_px: 200.0
+    bev_bottom_exclude_px: 300.0
+    bev_bottom_edge_margin_px: 30.0
 
-    # BEV preprocess: detection uses grayscale; Otsu is debug-only unless otsu_for_detection
+    # Detection runs on IPM BGR directly; Otsu/grayscale preprocess is unused here.
     bev_use_sharpen: false
-    bev_use_otsu: true
+    bev_use_otsu: false
     bev_otsu_for_detection: false
     bev_gaussian_blur_ksize: 0
     bev_morph_open_px: 0

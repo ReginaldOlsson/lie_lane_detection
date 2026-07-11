@@ -54,6 +54,10 @@ cv::Mat prepareFrontalImage(const cv::Mat & image_bgr);
 cv::Mat warpPerspectiveToBev(const cv::Mat & image_bgr, const PipelineParams & params);
 
 /// Full detection on a prepared BEV image (shared by offline tool, generator, ROS pipeline).
-BevDetectionResult detectLanesInBev(const cv::Mat & bev_bgr, PipelineParams params);
+/// Set \p configure_params=false when the caller has already run
+/// configureParamsForBev()/configureParamsForPerspectiveIpm() to avoid
+/// re-deriving (and partially clobbering) the SE(2)/deform bin configuration.
+BevDetectionResult detectLanesInBev(
+  const cv::Mat & bev_bgr, PipelineParams params, bool configure_params = true);
 
 }  // namespace lie_lane_detection

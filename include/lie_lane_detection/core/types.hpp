@@ -73,11 +73,16 @@ struct PipelineParams
   bool connect_dashed_edges{true};
   bool edge_anisotropic_blur{true};
   bool edge_thin{true};
+  /// Subpixel lateral refinement of edge points via parabolic magnitude fit.
+  bool use_subpixel_edges{true};
   double edge_low_threshold{30.0};
   double edge_high_threshold{90.0};
   double edge_border_margin_ratio{0.07};
   /// Pixels masked at bottom of BEV (hood / truck body). 0 = disabled.
   double bev_bottom_exclude_px{0.0};
+  /// Extra rows above `bev_bottom_exclude_px` masked for edge detection (suppresses
+  /// horizontal artifacts at the black/road boundary). 0 = use default when exclude > 0.
+  double bev_bottom_edge_margin_px{25.0};
   /// BEV noise filter / preprocessing before lane detection.
   bool bev_use_sharpen{false};
   /// Compute Otsu binary for /lanes/detect/filtered debug topic.
@@ -131,6 +136,9 @@ struct PipelineParams
   double inlier_dedup_ratio{0.3};
   double min_inlier_ratio{0.42};
   int min_inliers{15};
+  /// Weight RANSAC consensus and Gauss-Newton residuals by edge magnitude so
+  /// strong lane paint dominates faint clutter.
+  bool use_magnitude_weighted_fit{true};
 
   // Merge topology
   double merge_converged_threshold_m{1.5};
@@ -155,6 +163,12 @@ struct PipelineParams
   int ceres_max_iterations{25};
   bool use_ekf_temporal_prior{true};
   double ekf_hough_gate_sigma{2.5};
+
+  // Output temporal smoothing: low-pass matched lanes across frames to reduce
+  // jitter (xi_smoothed = alpha*measurement + (1-alpha)*previous).
+  bool use_output_temporal_smoothing{true};
+  double temporal_smoothing_alpha{0.5};
+  double temporal_match_max_vx_px{40.0};
 
   // Crosswalk / stop-bar rejection (absolute BEV longitudinal mask)
   bool use_longitudinal_line_filter{true};

@@ -1,7 +1,11 @@
+#include "lie_lane_detection/geometry/template_curve.hpp"
 #include "lie_lane_detection/nodes/node_params.hpp"
 #include "lie_lane_detection/pipeline/detection_common.hpp"
 #include "lie_lane_detection/pipeline/lane_detection_runner.hpp"
 #include "lie_lane_detection/visualization/visualization.hpp"
+
+#include <algorithm>
+#include <cmath>
 
 #include <cv_bridge/cv_bridge.hpp>
 #include <image_transport/image_transport.hpp>
@@ -12,13 +16,16 @@
 #include <std_msgs/msg/string.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
 
+#include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <deque>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <unordered_map>
 
 namespace lie_lane_detection
@@ -64,6 +71,9 @@ public:
     const std::string frontal_overlay_topic =
       declare_parameter<std::string>("frontal_overlay_topic", "/lanes/detect/frontal_overlay");
 
+    // Optional cap on detection rate (0 = process as fast as the worker can).
+    max_detect_rate_hz_ = declare_parameter<double>("detect_max_rate_hz", 0.0);
+
     marker_pub_ =
       create_publisher<visualization_msgs::msg::MarkerArray>("/lanes/detect/markers", 10);
     merge_pub_ =
@@ -94,12 +104,23 @@ public:
     RCLCPP_INFO(get_logger(), "  frontal overlay: %s", frontal_overlay_topic.c_str());
     RCLCPP_INFO(
       get_logger(),
-      "  preprocess: sharpen=%s otsu=%s otsu_detect=%s blur=%d morph_open=%d",
-      params_.bev_use_sharpen ? "on" : "off",
-      params_.bev_use_otsu ? "on" : "off",
-      params_.bev_otsu_for_detection ? "on" : "off",
-      params_.bev_gaussian_blur_ksize,
-      params_.bev_morph_open_px);
+      "  detection input: IPM BGR (bottom mask only; no grayscale/Otsu preprocess)");
+
+    // Detection runs on a dedicated worker so the ROS executor never blocks or
+    // backlogs; the mailbox always keeps only the newest BEV frame.
+    worker_ = std::thread(&BevLaneDetectorNode::detectionWorker, this);
+  }
+
+  ~BevLaneDetectorNode() override
+  {
+    {
+      std::lock_guard<std::mutex> lock(job_mutex_);
+      running_ = false;
+    }
+    job_cv_.notify_all();
+    if (worker_.joinable()) {
+      worker_.join();
+    }
   }
 
 private:
@@ -240,6 +261,9 @@ private:
     return oss.str();
   }
 
+  // Executor-thread callback: only decode + drop into the single-slot mailbox.
+  // Any pending (unprocessed) frame is overwritten so the worker always runs on
+  // the freshest BEV image and the executor never backlogs.
   void onBevImage(const sensor_msgs::msg::Image::ConstSharedPtr & msg)
   {
     cv_bridge::CvImageConstPtr cv_ptr;
@@ -250,34 +274,122 @@ private:
       return;
     }
 
+    {
+      std::lock_guard<std::mutex> lock(job_mutex_);
+      // Clone: toCvShare aliases msg memory that is freed after this callback.
+      pending_job_ = BevJob{cv_ptr->image.clone(), msg->header};
+    }
+    job_cv_.notify_one();
+  }
+
+  void detectionWorker()
+  {
+    using clock = std::chrono::steady_clock;
+    auto last_start = clock::now() - std::chrono::hours(1);
+    while (true) {
+      BevJob job;
+      {
+        std::unique_lock<std::mutex> lock(job_mutex_);
+        job_cv_.wait(lock, [this] {return !running_ || pending_job_.has_value();});
+        if (!running_) {
+          return;
+        }
+        job = std::move(*pending_job_);
+        pending_job_.reset();
+      }
+
+      // Optional max-rate throttle (latest-frame-wins already caps to worker
+      // throughput; this bounds CPU/GPU load when the source is faster).
+      if (max_detect_rate_hz_ > 0.0) {
+        const double min_interval_ms = 1000.0 / max_detect_rate_hz_;
+        const double since_ms =
+          std::chrono::duration<double, std::milli>(clock::now() - last_start).count();
+        if (since_ms < min_interval_ms) {
+          std::this_thread::sleep_for(
+            std::chrono::duration<double, std::milli>(min_interval_ms - since_ms));
+        }
+      }
+      last_start = clock::now();
+
+      processBev(job.image, job.header);
+    }
+  }
+
+  // Low-pass matched lanes across frames to reduce output jitter. Lanes are
+  // matched to the previous frame by lateral offset (xi[0]); matched lanes are
+  // blended (alpha*measurement + (1-alpha)*previous) and their polylines
+  // regenerated. Worker-thread only state, so no locking required.
+  void applyTemporalSmoothing(
+    std::vector<LaneHypothesis> & lanes, const PipelineParams & p, int rows, int cols)
+  {
+    if (!p.use_output_temporal_smoothing) {
+      prev_lanes_ = lanes;
+      return;
+    }
+    const double alpha = std::clamp(p.temporal_smoothing_alpha, 0.0, 1.0);
+    const double y_max = bevEffectiveYMax(rows, p);
+    TemplateCurve curve(p);
+    curve.setBevExtents(0.0, y_max, 0.0, static_cast<double>(cols));
+
+    std::vector<bool> used(prev_lanes_.size(), false);
+    for (auto & lane : lanes) {
+      int best = -1;
+      double best_d = p.temporal_match_max_vx_px;
+      for (size_t j = 0; j < prev_lanes_.size(); ++j) {
+        if (used[j]) {
+          continue;
+        }
+        const double d = std::abs(lane.xi[0] - prev_lanes_[j].xi[0]);
+        if (d < best_d) {
+          best_d = d;
+          best = static_cast<int>(j);
+        }
+      }
+      if (best >= 0) {
+        used[static_cast<size_t>(best)] = true;
+        lane.xi = alpha * lane.xi + (1.0 - alpha) * prev_lanes_[static_cast<size_t>(best)].xi;
+        lane.polyline = curve.samplePolyline(lane.xi);
+      }
+    }
+    prev_lanes_ = lanes;
+  }
+
+  void processBev(const cv::Mat & bev_image, const std_msgs::msg::Header & header)
+  {
     PipelineParams bev_params = params_;
-    configureParamsForBev(bev_params, cv_ptr->image.cols, cv_ptr->image.rows);
+    configureParamsForBev(bev_params, bev_image.cols, bev_image.rows);
     configureParamsForPerspectiveIpm(bev_params);
 
-    const BevPreprocessResult prep =
-      preprocessBevForLaneDetection(cv_ptr->image, bev_params);
+    // Run detection on the IPM BGR image directly. EdgeExtractor converts to
+    // grayscale internally (CLAHE + Sobel/steerable); the old grayscale road-mask
+    // preprocess path zeroed too much lane paint and produced sparse edges.
+    const cv::Mat work_bev = prepareBevForDetection(bev_image, bev_params);
 
     const auto t0 = std::chrono::steady_clock::now();
-    const BevDetectionResult det = detectLanesInBev(prep.detect_image, bev_params);
+    const BevDetectionResult det =
+      detectLanesInBev(bev_image, bev_params, /*configure_params=*/false);
     const auto t1 = std::chrono::steady_clock::now();
     const double total_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
-    const cv::Mat overlay = drawOverlay(prep.display_bgr, det.lanes, det.merges);
+    std::vector<LaneHypothesis> lanes = det.lanes;
+    applyTemporalSmoothing(lanes, bev_params, bev_image.rows, bev_image.cols);
 
-    marker_pub_->publish(lanesToMarkers(det.lanes, frame_id_, msg->header.stamp));
-    merge_pub_->publish(mergesToMarkers(det.merges, frame_id_, msg->header.stamp));
-    publishCvImage(overlay_pub_, overlay, msg->header);
-    publishCvImage(edges_pub_, det.edges, msg->header);
-    publishCvImage(filtered_pub_, prep.filtered_debug, msg->header);
+    const cv::Mat overlay = drawOverlay(work_bev, lanes, det.merges);
+
+    marker_pub_->publish(lanesToMarkers(lanes, frame_id_, header.stamp));
+    merge_pub_->publish(mergesToMarkers(det.merges, frame_id_, header.stamp));
+    publishCvImage(overlay_pub_, overlay, header);
+    publishCvImage(edges_pub_, det.edges, header);
+    publishCvImage(filtered_pub_, work_bev, header);
 
     {
       std::lock_guard<std::mutex> lock(sync_mutex_);
-      pending_frontal_ = PendingFrontalOverlay{msg->header, det.lanes, det.merges};
+      pending_frontal_ = PendingFrontalOverlay{header, lanes, det.merges};
       tryPublishFrontalOverlay();
     }
 
     std_msgs::msg::String stats;
-    stats.data = formatStats(det, total_ms, prep.otsu_threshold);
+    stats.data = formatStats(det, total_ms, -1.0);
     stats_pub_->publish(stats);
 
     RCLCPP_INFO_THROTTLE(
@@ -288,12 +400,28 @@ private:
 
   PipelineParams params_;
   std::string frame_id_;
+  double max_detect_rate_hz_{0.0};
 
   std::mutex sync_mutex_;
   std::deque<StampKey> stamp_order_;
   std::unordered_map<StampKey, cv::Mat, StampKeyHash> frontal_cache_;
   std::unordered_map<StampKey, cv::Mat, StampKeyHash> homography_cache_;
   std::optional<PendingFrontalOverlay> pending_frontal_;
+
+  // Detection worker + single-slot latest-frame-wins mailbox.
+  struct BevJob
+  {
+    cv::Mat image;
+    std_msgs::msg::Header header;
+  };
+  std::thread worker_;
+  std::mutex job_mutex_;
+  std::condition_variable job_cv_;
+  std::optional<BevJob> pending_job_;
+  bool running_{true};
+
+  // Previous frame's (smoothed) lanes for temporal low-pass; worker-only.
+  std::vector<LaneHypothesis> prev_lanes_;
 
   image_transport::Subscriber image_sub_;
   rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr homography_sub_;

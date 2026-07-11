@@ -87,20 +87,29 @@ bool ManifoldRansac::fitMinimal(const std::vector<EdgePoint> & sample, XiVector 
 int ManifoldRansac::countInliers(
   const XiVector & xi,
   const std::vector<EdgePoint> & edges,
-  std::vector<bool> * mask) const
+  std::vector<bool> * mask,
+  double * weighted_inliers) const
 {
   int count = 0;
+  double weight = 0.0;
   if (mask) {
     mask->assign(edges.size(), false);
   }
+  const bool weighted = params_.use_magnitude_weighted_fit;
   for (size_t i = 0; i < edges.size(); ++i) {
     const Vec2 p(edges[i].x, edges[i].y);
     if (template_curve_->distanceToCurve(xi, p) < params_.inlier_threshold_px) {
       ++count;
+      // Magnitude in [0,255]; normalize so weighted mass is comparable to the
+      // plain count and strong paint outweighs faint clutter.
+      weight += weighted ? std::max(edges[i].magnitude, 1.0) / 255.0 : 1.0;
       if (mask) {
         (*mask)[i] = true;
       }
     }
+  }
+  if (weighted_inliers) {
+    *weighted_inliers = weighted ? weight : static_cast<double>(count);
   }
   return count;
 }
@@ -127,6 +136,7 @@ void ManifoldRansac::refineGaussNewton(XiVector & xi, const std::vector<EdgePoin
     Eigen::Matrix<double, 5, 5> H = Eigen::Matrix<double, 5, 5>::Zero();
     Eigen::Matrix<double, 5, 1> b = Eigen::Matrix<double, 5, 1>::Zero();
 
+    const bool weighted = params_.use_magnitude_weighted_fit;
     for (const auto & e : inliers) {
       const Vec2 p(e.x, e.y);
       double t_near = 0.0;
@@ -143,8 +153,9 @@ void ManifoldRansac::refineGaussNewton(XiVector & xi, const std::vector<EdgePoin
         J.col(d) = (q_eps - q) / eps;
       }
 
-      H += J.transpose() * J;
-      b += J.transpose() * residual;
+      const double w = weighted ? std::max(e.magnitude, 1.0) / 255.0 : 1.0;
+      H += w * (J.transpose() * J);
+      b += w * (J.transpose() * residual);
     }
 
     H += kLambda * Eigen::Matrix<double, 5, 5>::Identity();
@@ -192,6 +203,7 @@ LaneHypothesis ManifoldRansac::fit(
   struct RansacBest
   {
     int inliers{0};
+    double weight{0.0};  // magnitude-weighted inlier mass (selection metric)
     XiVector xi{XiVector::Zero()};
     std::vector<bool> mask;
   };
@@ -223,9 +235,11 @@ LaneHypothesis ManifoldRansac::fit(
         }
 
         std::vector<bool> mask;
-        const int inliers = countInliers(xi_try, candidates, &mask);
-        if (inliers > local.inliers) {
+        double weight = 0.0;
+        const int inliers = countInliers(xi_try, candidates, &mask, &weight);
+        if (weight > local.weight) {
           local.inliers = inliers;
+          local.weight = weight;
           local.xi = xi_try;
           local.mask = std::move(mask);
         }
@@ -233,13 +247,14 @@ LaneHypothesis ManifoldRansac::fit(
       return local;
     },
     [](RansacBest a, const RansacBest & b) {
-      if (b.inliers > a.inliers) {
+      if (b.weight > a.weight) {
         return b;
       }
       return a;
     });
 
   int best_inliers = best_state.inliers;
+  double best_weight = best_state.weight;
   XiVector best_xi = best_state.xi;
   std::vector<bool> best_mask = best_state.mask;
 
@@ -268,13 +283,15 @@ LaneHypothesis ManifoldRansac::fit(
     XiVector cand_xi = best_xi;
     refineGaussNewton(cand_xi, inliers);
     std::vector<bool> cand_mask;
-    const int cand_inliers = countInliers(cand_xi, candidates, &cand_mask);
-    if (cand_inliers < best_inliers) {
+    double cand_weight = 0.0;
+    const int cand_inliers = countInliers(cand_xi, candidates, &cand_mask, &cand_weight);
+    if (cand_weight < best_weight) {
       break;  // refinement made consensus worse: reject and stop.
     }
     const bool converged = (cand_inliers == best_inliers);
     best_xi = cand_xi;
     best_inliers = cand_inliers;
+    best_weight = cand_weight;
     best_mask = std::move(cand_mask);
     if (converged) {
       break;

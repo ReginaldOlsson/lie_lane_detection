@@ -31,7 +31,9 @@ private:
 
   bool fitMinimal(const std::vector<EdgePoint> & sample, XiVector & xi_out) const;
 
-  int countInliers(const XiVector & xi, const std::vector<EdgePoint> & edges, std::vector<bool> * mask) const;
+  int countInliers(
+    const XiVector & xi, const std::vector<EdgePoint> & edges, std::vector<bool> * mask,
+    double * weighted_inliers = nullptr) const;
 
   PipelineParams params_;
   TemplateCurve * template_curve_{nullptr};

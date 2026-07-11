@@ -67,6 +67,7 @@ set(CORE_SOURCES
   src/geometry/template_curve.cpp
   src/preprocessing/ipm_transformer.cpp
   src/preprocessing/auto_frontal_ipm.cpp
+  src/preprocessing/boreas_calib.cpp
   src/preprocessing/edge_extractor.cpp
   src/voting/lie_hough_voter.cpp
   src/voting/line_hough_extractor.cpp
@@ -223,6 +224,9 @@ ament_target_dependencies(intensity_strip_lane_detector_node
 )
 
 # --- Offline tools ---
+add_executable(lane_detect_dataset_offline src/tools/lane_detect_dataset_offline.cpp)
+target_link_libraries(lane_detect_dataset_offline lie_lane_detection_core ${OpenCV_LIBS})
+
 add_executable(lane_detect_offline src/tools/lane_detect_offline.cpp)
 target_link_libraries(lane_detect_offline lie_lane_detection_core ${OpenCV_LIBS})
 
@@ -255,6 +259,7 @@ install(TARGETS
   bev_mosaic_node
   intensity_strip_lane_detector_node
   lane_detect_offline
+  lane_detect_dataset_offline
   benchmark_bev_detection
   lane_detect_video_offline
   estimate_frontal_homography
@@ -304,6 +309,9 @@ if(BUILD_TESTING)
 
   ament_add_gtest(test_ipm_roi test/preprocessing/test_ipm_roi.cpp)
   target_link_libraries(test_ipm_roi lie_lane_detection_core)
+
+  ament_add_gtest(test_boreas_calib test/preprocessing/test_boreas_calib.cpp)
+  target_link_libraries(test_boreas_calib lie_lane_detection_core)
 
   ament_add_gtest(test_bev_mosaic test/mosaic/test_bev_mosaic.cpp)
   target_link_libraries(test_bev_mosaic lie_lane_detection_core)

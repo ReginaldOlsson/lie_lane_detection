@@ -12,7 +12,7 @@
   <arg name="bev_topic" default="/ipm/bev"/>
   <arg name="image_topic" default="/camera/image_raw"/>
   <arg name="frontal_overlay_topic" default="/lanes/detect/frontal_overlay"/>
-  <arg name="publish_rate_hz" default="10.0"/>
+  <arg name="publish_rate_hz" default="2.50"/>
   <arg name="target_width" default="640"/>
   <arg name="bev_width_m" default="90.0"/>
   <arg name="bev_length_m" default="120.0"/>

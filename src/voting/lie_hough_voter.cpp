@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <limits>
 #include <utility>
 #include <vector>
@@ -52,6 +53,14 @@ XiVector LieHoughVoter::binToXi(int ix, int iy, int io, int ik, int is) const
 
 bool LieHoughVoter::isPeakSeparated(const XiVector & a, const XiVector & b) const
 {
+  // Lanes are primarily distinguished by lateral offset. Require a minimum
+  // lateral gap so the top-k SE(2) peaks span distinct lanes instead of
+  // clustering as near-duplicate poses of a single (dominant) lane - the pose
+  // distance alone lets same-vx peaks with slightly different omega/vy pass,
+  // which starves other lanes once soft voting sharpens one lane's peak.
+  if (std::abs(a[0] - b[0]) < 0.5 * params_.min_lane_separation_px) {
+    return false;
+  }
   return hypothesisDistance(a, b) >= params_.nms_se2_min;
 }
 
@@ -176,6 +185,15 @@ std::vector<LaneHypothesis> LieHoughVoter::vote(
   const double vote_thresh = params_.vote_threshold_px;
   const double vote_thresh_sq = vote_thresh * vote_thresh;
 
+  // Soft (Gaussian) voting weights in-gate contributions by exp(-d^2/(2 sigma^2))
+  // for sharper, more stable peaks; falls back to raw magnitude when disabled.
+  const bool soft_voting = params_.use_soft_voting;
+  const double soft_sigma = std::max(params_.soft_vote_sigma_px, 1e-3);
+  const double inv_two_sigma_sq = 1.0 / (2.0 * soft_sigma * soft_sigma);
+  auto voteWeight = [&](double mag, double d_sq) {
+      return soft_voting ? mag * std::exp(-d_sq * inv_two_sigma_sq) : mag;
+    };
+
   auto merge_accum = [](std::vector<double> a, const std::vector<double> & b) {
       DenseAccumulator::mergeInPlace(a, b);
       return a;
@@ -236,6 +254,8 @@ std::vector<LaneHypothesis> LieHoughVoter::vote(
     cfg.y_min = static_cast<float>(template_curve_->localFrameYMin());
     cfg.y_span = static_cast<float>(template_curve_->localFrameYSpan());
     cfg.vote_thresh = static_cast<float>(vote_thresh);
+    cfg.soft_voting = soft_voting ? 1 : 0;
+    cfg.inv_two_sigma_sq = static_cast<float>(inv_two_sigma_sq);
 
     stage_a_done = cuda::stageAVote(
       cfg, ex, ey, emag, lut_flat, vx_lut_f, preset_kappa, preset_sigma, se2_accum);
@@ -261,12 +281,13 @@ std::vector<LaneHypothesis> LieHoughVoter::vote(
               continue;
             }
             for (int iy = 0; iy < vy_bins; ++iy) {
-              for (int io = 0; io < omega_bins; ++io) {
-                const int idx = flatBinIndex(ix, iy, io, vx_bins, vy_bins);
-                if (minDistanceSq(ix, iy, io, p) < vote_thresh_sq) {
-                  local[static_cast<size_t>(idx)] += edge.magnitude;
-                }
+            for (int io = 0; io < omega_bins; ++io) {
+              const int idx = flatBinIndex(ix, iy, io, vx_bins, vy_bins);
+              const double d_sq = minDistanceSq(ix, iy, io, p);
+              if (d_sq < vote_thresh_sq) {
+                local[static_cast<size_t>(idx)] += voteWeight(edge.magnitude, d_sq);
               }
+            }
             }
           }
         }
@@ -368,8 +389,9 @@ std::vector<LaneHypothesis> LieHoughVoter::vote(
             double votes = 0.0;
             for (const auto & le : local_edges) {
               const double d = template_curve_->distanceInLocalFrame(le.a, le.b, kappa, sigma);
-              if (d * d < vote_thresh_sq) {
-                votes += le.mag;
+              const double d_sq = d * d;
+              if (d_sq < vote_thresh_sq) {
+                votes += voteWeight(le.mag, d_sq);
               }
             }
             return votes;

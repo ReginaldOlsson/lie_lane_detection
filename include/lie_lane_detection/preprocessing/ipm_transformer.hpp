@@ -34,4 +34,25 @@ private:
   bool homography_valid_{false};
 };
 
+/// Draw both src (yellow) and metric dst (magenta) ROIs on BEV for alignment checks.
+void drawIpmRoiOnBev(
+  cv::Mat & bev_bgr,
+  const cv::Mat & H_img2bev,
+  const PipelineParams & params);
+
+/// Draw axis-aligned src rectangle (image px) on a frontal image.
+void drawIpmSrcRoi(
+  cv::Mat & image_bgr,
+  const PipelineParams & params,
+  const cv::Scalar & color = cv::Scalar(0, 255, 255),
+  int thickness = 2);
+
+/// Draw metric dst ground trapezoid back-projected onto a frontal image.
+void drawIpmMetricDstOnImage(
+  cv::Mat & image_bgr,
+  const cv::Mat & H_img2bev,
+  const PipelineParams & params,
+  const cv::Scalar & color = cv::Scalar(255, 0, 255),
+  int thickness = 2);
+
 }  // namespace lie_lane_detection

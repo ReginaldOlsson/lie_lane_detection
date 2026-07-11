@@ -40,6 +40,24 @@ void configureParamsForBev(PipelineParams & params, int cols, int rows)
   params.peel_edge_margin_px = std::max(
     params.peel_edge_margin_px,
     std::max(12.0, params.inlier_threshold_px * 1.5));
+
+  // Hood crop defaults target ~800px highway BEV; clamp for small metric IPM footprints.
+  if (rows > 0) {
+    const double max_exclude = 0.30 * static_cast<double>(rows);
+    if (params.bev_bottom_exclude_px > max_exclude) {
+      params.bev_bottom_exclude_px = max_exclude;
+    }
+    const double max_margin = 0.12 * static_cast<double>(rows);
+    if (params.bev_bottom_edge_margin_px > max_margin) {
+      params.bev_bottom_edge_margin_px = max_margin;
+    }
+  }
+
+  const int area = std::max(1, cols * rows);
+  params.min_inliers = std::min(params.min_inliers, std::max(5, area / 120));
+  params.min_lane_separation_px = std::min(
+    params.min_lane_separation_px,
+    std::max(3.0, static_cast<double>(cols) / 6.0));
 }
 
 void enhanceParamsForCurvature(PipelineParams & params)
@@ -148,7 +166,8 @@ cv::Mat warpPerspectiveToBev(const cv::Mat & image_bgr, const PipelineParams & p
   return ipm.warpToBev(image_bgr);
 }
 
-BevDetectionResult detectLanesInBev(const cv::Mat & bev_bgr, PipelineParams params)
+BevDetectionResult detectLanesInBev(
+  const cv::Mat & bev_bgr, PipelineParams params, bool configure_params)
 {
   const auto t0 = std::chrono::steady_clock::now();
   BevDetectionResult result;
@@ -156,7 +175,9 @@ BevDetectionResult detectLanesInBev(const cv::Mat & bev_bgr, PipelineParams para
     return result;
   }
 
-  configureParamsForBev(params, bev_bgr.cols, bev_bgr.rows);
+  if (configure_params) {
+    configureParamsForBev(params, bev_bgr.cols, bev_bgr.rows);
+  }
 
   const cv::Mat work_bev = prepareBevForDetection(bev_bgr, params);
   const double y_max = bevEffectiveYMax(bev_bgr.rows, params);
@@ -173,6 +194,14 @@ BevDetectionResult detectLanesInBev(const cv::Mat & bev_bgr, PipelineParams para
   result.edge_ms =
     std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t_edge0).count();
   result.edge_point_count = all_edges.size();
+
+  if (!edges_img.empty()) {
+    const int mask_rows = bevBottomMaskRows(params);
+    if (mask_rows > 0) {
+      const int y0 = std::max(0, edges_img.rows - mask_rows);
+      edges_img.rowRange(y0, edges_img.rows).setTo(0);
+    }
+  }
 
   const double border_margin = static_cast<double>(bev_bgr.cols) * params.edge_border_margin_ratio;
   auto working_edges = filterBorderEdges(

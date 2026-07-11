@@ -421,27 +421,22 @@ FrontalHomographyResult estimateFrontalHomography(
         5, cv::Scalar(255, 128, 0), 1);
     }
   }
-  if (params.ipm_src_points.size() >= 8) {
-    std::vector<cv::Point> poly(4);
-    for (int i = 0; i < 4; ++i) {
-      poly[static_cast<size_t>(i)] = cv::Point(
-        static_cast<int>(params.ipm_src_points[2 * i]),
-        static_cast<int>(params.ipm_src_points[2 * i + 1]));
-    }
-    const std::vector<std::vector<cv::Point>> polys = {poly};
-    cv::polylines(result.debug_roi, polys, true, cv::Scalar(0, 255, 255), 2);
-  }
-
   IPMTransformer ipm(params);
   if (!ipm.computeHomography(nullptr)) {
     return result;
   }
   result.H_img2bev = ipm.homography().clone();
+
+  drawIpmMetricDstOnImage(result.debug_roi, result.H_img2bev, params);
+  if (params.ipm_src_points.size() >= 8) {
+    drawIpmSrcRoi(result.debug_roi, params, cv::Scalar(0, 255, 255), 2);
+  }
   result.bev = ipm.warpToBev(image_bgr);
   if (result.bev.empty()) {
     return result;
   }
   result.bev = prepareBevImage(result.bev);
+  drawIpmRoiOnBev(result.bev, result.H_img2bev, params);
   result.valid = true;
   return result;
 }

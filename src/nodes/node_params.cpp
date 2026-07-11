@@ -20,6 +20,7 @@ PipelineParams loadIpmParams(rclcpp::Node & node)
   p.ipm_top_y_min_ratio = node.declare_parameter<double>("ipm_top_y_min_ratio", 0.32);
   p.ipm_top_y_max_ratio = node.declare_parameter<double>("ipm_top_y_max_ratio", 0.72);
   p.bev_bottom_exclude_px = node.declare_parameter<double>("bev_bottom_exclude_px", 200.0);
+  p.bev_bottom_edge_margin_px = node.declare_parameter<double>("bev_bottom_edge_margin_px", 25.0);
   return p;
 }
 
@@ -30,9 +31,11 @@ PipelineParams loadDetectionParams(rclcpp::Node & node)
   p.connect_dashed_edges = node.declare_parameter<bool>("connect_dashed_edges", true);
   p.edge_anisotropic_blur = node.declare_parameter<bool>("edge_anisotropic_blur", true);
   p.edge_thin = node.declare_parameter<bool>("edge_thin", true);
+  p.use_subpixel_edges = node.declare_parameter<bool>("use_subpixel_edges", true);
   p.edge_low_threshold = node.declare_parameter<double>("edge_low_threshold", 25.0);
   p.edge_high_threshold = node.declare_parameter<double>("edge_high_threshold", 70.0);
   p.bev_bottom_exclude_px = node.declare_parameter<double>("bev_bottom_exclude_px", 0.0);
+  p.bev_bottom_edge_margin_px = node.declare_parameter<double>("bev_bottom_edge_margin_px", 25.0);
   p.bev_use_sharpen = node.declare_parameter<bool>("bev_use_sharpen", false);
   p.bev_use_otsu = node.declare_parameter<bool>("bev_use_otsu", false);
   p.bev_otsu_for_detection = node.declare_parameter<bool>("bev_otsu_for_detection", false);
@@ -45,6 +48,16 @@ PipelineParams loadDetectionParams(rclcpp::Node & node)
   p.use_iterative_peeling = node.declare_parameter<bool>("use_iterative_peeling", true);
   p.vote_threshold_px = node.declare_parameter<double>("vote_threshold_px", 8.0);
   p.inlier_threshold_px = node.declare_parameter<double>("inlier_threshold_px", 10.0);
+  p.use_magnitude_weighted_fit =
+    node.declare_parameter<bool>("use_magnitude_weighted_fit", true);
+  p.use_soft_voting = node.declare_parameter<bool>("use_soft_voting", p.use_soft_voting);
+  p.soft_vote_sigma_px = node.declare_parameter<double>("soft_vote_sigma_px", p.soft_vote_sigma_px);
+  p.use_output_temporal_smoothing =
+    node.declare_parameter<bool>("use_output_temporal_smoothing", true);
+  p.temporal_smoothing_alpha =
+    node.declare_parameter<double>("temporal_smoothing_alpha", p.temporal_smoothing_alpha);
+  p.temporal_match_max_vx_px =
+    node.declare_parameter<double>("temporal_match_max_vx_px", p.temporal_match_max_vx_px);
   p.min_inlier_ratio = node.declare_parameter<double>("min_inlier_ratio", 0.30);
   p.min_inliers = node.declare_parameter<int>("min_inliers", 15);
   p.min_lane_separation_px = node.declare_parameter<double>("min_lane_separation_px", 28.0);

@@ -21,11 +21,17 @@ bool passesQualityGate(
   const PipelineParams & params,
   double image_height);
 
-/// Highest valid forward row in BEV (excludes bottom hood crop).
+/// Highest valid forward row in BEV (excludes bottom hood crop + edge margin).
 double bevEffectiveYMax(int bev_rows, const PipelineParams & params);
+
+/// Total bottom rows to black out before edge detection (exclude + edge margin).
+int bevBottomMaskRows(const PipelineParams & params);
 
 /// Black out bottom `bev_bottom_exclude_px` rows (truck body / hood).
 void maskBevBottomExclude(cv::Mat & bev_bgr, const PipelineParams & params);
+
+/// Black out bottom hood rows plus edge margin (detection preprocess only).
+void maskBevBottomForDetection(cv::Mat & bev_bgr, const PipelineParams & params);
 
 /// Clone BEV and mask bottom exclude region when enabled.
 cv::Mat prepareBevForDetection(const cv::Mat & bev_bgr, const PipelineParams & params);

@@ -82,6 +82,8 @@ __global__ void stageAKernel(
   float y_min,
   float y_span,
   float vote_thresh,
+  int soft_voting,
+  float inv_two_sigma_sq,
   float * __restrict__ accum)
 {
   const int e = blockIdx.x * blockDim.x + threadIdx.x;
@@ -123,7 +125,8 @@ __global__ void stageAKernel(
           best = fminf(best, d2);
         }
         if (best < vote_thresh_sq) {
-          atomicAdd(&accum[idx], mag);
+          const float w = soft_voting ? mag * __expf(-best * inv_two_sigma_sq) : mag;
+          atomicAdd(&accum[idx], w);
         }
       }
     }
@@ -274,7 +277,8 @@ bool stageAVote(
   stageAKernel<<<grid, block>>>(
     ctx.d_x, ctx.d_y, ctx.d_mag, num_edges, ctx.d_lut, ctx.d_vx, ctx.d_pk, ctx.d_ps,
     cfg.num_presets, cfg.vx_bins, cfg.vy_bins, cfg.omega_bins, cfg.ix_radius,
-    cfg.vx_min, cfg.vx_max, cfg.y_min, cfg.y_span, cfg.vote_thresh, ctx.d_acc);
+    cfg.vx_min, cfg.vx_max, cfg.y_min, cfg.y_span, cfg.vote_thresh,
+    cfg.soft_voting, cfg.inv_two_sigma_sq, ctx.d_acc);
   if (timing) {cudaEventRecord(t1);}
 
   if (!ok(cudaGetLastError()) || !ok(cudaDeviceSynchronize())) {
