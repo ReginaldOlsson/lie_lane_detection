@@ -123,6 +123,22 @@ struct PipelineParams
   double min_lane_separation_px{28.0};
   double hough_hypothesis_merge_ratio{0.85};
   double min_inlier_y_coverage{0.35};
+  /// Drop lane hypotheses below this fraction of the top score (0 = disabled).
+  double min_lane_relative_score{0.48};
+  /// Reject hypotheses whose |omega| deviates from the batch median by more than this.
+  double max_lane_omega_deviation_rad{0.14};
+  /// Reject high-deformation fits often caused by vehicle/clutter edges.
+  double max_lane_curvature_abs{0.18};
+  double max_lane_sigma_abs{0.35};
+  /// Edge-gradient alignment with the fitted lane tangent (BEV lane paint).
+  bool use_lane_edge_orientation_gate{true};
+  double lane_edge_orientation_max_dev_rad{0.42};
+  double min_lane_edge_orientation_ratio{0.52};
+  /// Reject fits whose inlier y-support has large gaps (short vehicle edges).
+  double max_lane_inlier_gap_px{40.0};
+  double max_lane_inlier_gap_ratio{0.28};
+  /// Minimum absolute inlier span along forward axis (0 = coverage ratio only).
+  double min_lane_inlier_y_span_px{0.0};
 
   // Classical line Hough (stage 1 of line-first pipeline)
   int line_hough_threshold{25};
@@ -189,6 +205,15 @@ struct PipelineParams
 
   // Joint road manifold (shared T_ego, kappa, sigma, w_lane)
   bool use_road_manifold_joint{true};
+
+  // Hybrid AI road-feature gate (ONNX, OpenCV DNN). Masks snow/clutter before edges.
+  bool use_road_feature_segmenter{false};
+  std::string road_segmenter_onnx_path;
+  int road_segmenter_input_width{256};
+  int road_segmenter_input_height{128};
+  double road_segmenter_road_threshold{0.45};
+  double road_segmenter_lane_threshold{0.35};
+  double road_segmenter_snow_reject_threshold{0.55};
 };
 
 /// BEV forward axis = +y; lane segments ≈ vertical (angle ≈ π/2).

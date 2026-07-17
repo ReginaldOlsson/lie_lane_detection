@@ -2,15 +2,19 @@
 <!--
   Two-node BEV pipeline: frontal_ipm_node -> bev_lane_detector_node
 
-  Usage:
-    ros2 launch lie_lane_detection truck_bev_pipeline.launch.xml use_video_publisher:=true
+  For Boreas rosbag (recommended):
+    ros2 bag play /path/to/boreas_bag --clock
+    ros2 launch lie_lane_detection boreas_bev_pipeline.launch.xml
+
+  For local truck video (raw sensor_msgs/Image):
+    ros2 launch lie_lane_detection truck_bev_pipeline.launch.xml use_video_publisher:=true image_transport:=raw
 -->
 <launch>
-  <arg name="use_video_publisher" default="true"/>
+  <arg name="use_video_publisher" default="false"/>
   <arg name="video_path" default="/home/mosal/autoware/lane_detection_test_images/truck_frontal_video/truck_highway_7m40.mp4"/>
-  <arg name="image_topic" default="/camera/image_raw"/>
   <arg name="bev_topic" default="/ipm/bev"/>
-  <arg name="image_topic" default="/camera/image_raw"/>
+  <arg name="image_topic" default="/boreas/image"/>
+  <arg name="image_transport" default="compressed"/>
   <arg name="frontal_overlay_topic" default="/lanes/detect/frontal_overlay"/>
   <arg name="publish_rate_hz" default="2.50"/>
   <arg name="target_width" default="640"/>
@@ -33,6 +37,7 @@
   <node pkg="lie_lane_detection" exec="frontal_ipm_node" name="frontal_ipm_node" output="screen">
     <param from="$(find-pkg-share lie_lane_detection)/config/ipm_converter.yaml"/>
     <param name="image_topic" value="$(var image_topic)"/>
+    <param name="image_transport" value="$(var image_transport)"/>
     <param name="bev_topic" value="$(var bev_topic)"/>
     <param name="bev_width_m" value="$(var bev_width_m)"/>
     <param name="bev_length_m" value="$(var bev_length_m)"/>
@@ -43,6 +48,7 @@
     <param from="$(find-pkg-share lie_lane_detection)/config/bev_lane_detector.yaml"/>
     <param name="bev_topic" value="$(var bev_topic)"/>
     <param name="image_topic" value="$(var image_topic)"/>
+    <param name="image_transport" value="$(var image_transport)"/>
     <param name="frontal_overlay_topic" value="$(var frontal_overlay_topic)"/>
     <param name="bev_bottom_exclude_px" value="$(var bev_bottom_exclude_px)"/>
     <param name="max_output_lanes" value="$(var max_output_lanes)"/>

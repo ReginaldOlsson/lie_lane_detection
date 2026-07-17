@@ -26,6 +26,7 @@
 #include "lie_lane_detection/preprocessing/auto_frontal_ipm.hpp"
 #include "lie_lane_detection/preprocessing/boreas_calib.hpp"
 #include "lie_lane_detection/preprocessing/ipm_transformer.hpp"
+#include "lie_lane_detection/preprocessing/road_feature_segmenter.hpp"
 #include "lie_lane_detection/visualization/visualization.hpp"
 #include "offline_display.hpp"
 
@@ -65,8 +66,13 @@ lie::PipelineParams defaultParams()
   p.use_iterative_peeling = true;
   p.vote_threshold_px = 9.0;
   p.inlier_threshold_px = 10.0;
-  p.min_inlier_ratio = 0.35;
-  p.min_inliers = 15;
+  p.min_inlier_ratio = 0.36;
+  p.min_inliers = 16;
+  p.min_inlier_y_coverage = 0.32;
+  p.max_output_lanes = 6;
+  p.min_lane_relative_score = 0.40;
+  p.max_lane_omega_deviation_rad = 0.16;
+  p.min_lane_edge_orientation_ratio = 0.44;
   p.kappa_min = -0.28;
   p.kappa_max = 0.28;
   p.sigma_min = -0.55;
@@ -104,6 +110,7 @@ int main(int argc, char ** argv)
   bool show_windows = false;
   bool wait_ms_set = false;
   int wait_ms = 0;
+  std::string road_mask_model;
 
   for (int i = 1; i < argc; ++i) {
     const std::string arg = argv[i];
@@ -132,6 +139,8 @@ int main(int argc, char ** argv)
     } else if (arg == "--wait-ms" && i + 1 < argc) {
       wait_ms = std::stoi(argv[++i]);
       wait_ms_set = true;
+    } else if (arg == "--road-mask-model" && i + 1 < argc) {
+      road_mask_model = argv[++i];
     } else if (arg == "--help" || arg == "-h") {
       std::cout <<
         "Usage: lane_detect_dataset_offline --dataset BOREAS_SEQ | --images CAMERA_DIR\n"
@@ -146,6 +155,7 @@ int main(int argc, char ** argv)
         "  --max-frames    Cap processed frames (default 30)\n"
         "  --show          cv::imshow per frame (edges/ipm_overlay/frontal_overlay)\n"
         "  --wait-ms N     waitKey delay per frame (default 1 with --show; 0=step)\n"
+        "  --road-mask-model PATH  ONNX tiny road/lane/snow segmenter for hybrid gate\n"
         "  --no-video      Skip overlay MP4\n";
       return 0;
     }
@@ -181,6 +191,17 @@ int main(int argc, char ** argv)
 
   lie::PipelineParams params = defaultParams();
   lie::IPMTransformer ipm(params);
+  lie::RoadFeatureSegmenter road_segmenter;
+  if (!road_mask_model.empty()) {
+    params.use_road_feature_segmenter = true;
+    params.road_segmenter_onnx_path = road_mask_model;
+    if (!road_segmenter.load(road_mask_model)) {
+      std::cerr << "Failed to load road mask ONNX: " << road_mask_model << "\n";
+      return 1;
+    }
+    road_segmenter.updateParams(params);
+    std::cout << "Hybrid road segmenter: " << road_mask_model << "\n";
+  }
   cv::Mat H_img2bev;
   std::string ipm_mode = "auto-vp";
   cv::Mat calib_debug;
@@ -330,7 +351,9 @@ int main(int argc, char ** argv)
     bev = lie::prepareBevImage(bev);
     lie::maskBevBottomExclude(bev, params);
 
-    const lie::BevDetectionResult det = lie::detectLanesInBev(bev, params, /*configure=*/false);
+    const lie::BevDetectionResult det = lie::detectLanesInBev(
+      bev, params, /*configure=*/false,
+      road_segmenter.isReady() ? &road_segmenter : nullptr);
     cv::Mat overlay = lie::drawOverlay(bev, det.lanes, det.merges);
     cv::Mat frontal_overlay = lie::drawFrontalOverlay(frame, det.lanes, det.merges, H_img2bev);
     lie::drawIpmRoiOnBev(overlay, H_img2bev, params);
@@ -345,6 +368,9 @@ int main(int argc, char ** argv)
       lie::filterBevEdgeArtifacts(det.edges, bev, params, H_img2bev);
     const cv::Mat edge_vis = lie::offline_display::composeCleanEdgeView(filtered_edges);
     cv::imwrite((output_dir / "frames" / (stem + "_edges.png")).string(), edge_vis);
+    if (!det.road_feature_debug.empty()) {
+      cv::imwrite((output_dir / "frames" / (stem + "_road_mask.png")).string(), det.road_feature_debug);
+    }
     cv::imwrite((output_dir / "frames" / (stem + "_overlay.png")).string(), overlay);
     cv::imwrite((output_dir / "frames" / (stem + "_frontal_overlay.png")).string(), frontal_overlay);
 
@@ -375,6 +401,9 @@ int main(int argc, char ** argv)
 
     if (show_windows) {
       lie::offline_display::show("edges", edge_vis);
+      if (!det.road_feature_debug.empty()) {
+        lie::offline_display::show("road_mask", det.road_feature_debug);
+      }
       lie::offline_display::show("ipm_overlay", overlay);
       lie::offline_display::show("frontal_overlay", frontal_overlay);
       if (!lie::offline_display::wait(wait_ms)) {

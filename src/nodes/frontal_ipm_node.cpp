@@ -1,18 +1,20 @@
-#include <memory>
-#include <string>
-
-#include <cv_bridge/cv_bridge.hpp>
-#include <image_transport/image_transport.hpp>
-#include <rclcpp/rclcpp.hpp>
-#include <sensor_msgs/msg/image.hpp>
-#include <std_msgs/msg/float64_multi_array.hpp>
-
 #include "lie_lane_detection/motion/ego_motion_estimator.hpp"
 #include "lie_lane_detection/nodes/node_params.hpp"
 #include "lie_lane_detection/pipeline/detection_common.hpp"
 #include "lie_lane_detection/pipeline/lane_detection_runner.hpp"
 #include "lie_lane_detection/preprocessing/auto_frontal_ipm.hpp"
+#include "lie_lane_detection/preprocessing/boreas_calib.hpp"
 #include "lie_lane_detection/preprocessing/ipm_transformer.hpp"
+
+#include <cv_bridge/cv_bridge.hpp>
+#include <image_transport/image_transport.hpp>
+#include <rclcpp/rclcpp.hpp>
+
+#include <sensor_msgs/msg/image.hpp>
+#include <std_msgs/msg/float64_multi_array.hpp>
+
+#include <memory>
+#include <string>
 
 namespace lie_lane_detection
 {
@@ -27,6 +29,7 @@ public:
   {
     const std::string image_topic =
       declare_parameter<std::string>("image_topic", "/camera/image_raw");
+    const std::string image_transport = declare_parameter<std::string>("image_transport", "raw");
     const std::string bev_topic = declare_parameter<std::string>("bev_topic", "/ipm/bev");
     const std::string roi_topic =
       declare_parameter<std::string>("roi_debug_topic", "/ipm/debug/roi");
@@ -38,8 +41,7 @@ public:
     // the homography. Steady-state frames skip VP detection entirely and only
     // run cv::warpPerspective.
     freeze_ipm_ = declare_parameter<bool>("freeze_ipm", true);
-    calibration_frames_ =
-      static_cast<int>(declare_parameter<int>("ipm_calibration_frames", 20));
+    calibration_frames_ = static_cast<int>(declare_parameter<int>("ipm_calibration_frames", 20));
     max_calibration_frames_ =
       static_cast<int>(declare_parameter<int>("ipm_max_calibration_frames", 120));
 
@@ -48,36 +50,51 @@ public:
     homography_pub_ = create_publisher<std_msgs::msg::Float64MultiArray>(homography_topic, 10);
 
     image_sub_ = image_transport::create_subscription(
-      this, image_topic,
-      std::bind(&FrontalIpmNode::onImage, this, std::placeholders::_1),
-      "raw", rmw_qos_profile_sensor_data);
+      this, image_topic, std::bind(&FrontalIpmNode::onImage, this, std::placeholders::_1),
+      image_transport, rmw_qos_profile_sensor_data);
 
     RCLCPP_INFO(
       get_logger(),
-      "frontal_ipm_node: %s -> %s (%.0fx%.0f m @ %.3f m/px, bottom_exclude=%.0f px)",
-      image_topic.c_str(), bev_topic.c_str(),
-      params_.bev_width_m, params_.bev_length_m, params_.bev_resolution_m_per_px,
-      params_.bev_bottom_exclude_px);
-    RCLCPP_INFO(get_logger(), "  debug: %s, homography: %s", roi_topic.c_str(), homography_topic.c_str());
+      "frontal_ipm_node: %s (%s) -> %s (%.0fx%.0f m @ %.3f m/px, bottom_exclude=%.0f px)",
+      image_topic.c_str(), image_transport.c_str(), bev_topic.c_str(), params_.bev_width_m,
+      params_.bev_length_m, params_.bev_resolution_m_per_px, params_.bev_bottom_exclude_px);
+    RCLCPP_INFO(
+      get_logger(), "  debug: %s, homography: %s", roi_topic.c_str(), homography_topic.c_str());
+
+    const std::string boreas_calib_dir = declare_parameter<std::string>("boreas_calib_dir", "");
+    const bool boreas_use_ground_ipm = declare_parameter<bool>("boreas_use_ground_ipm", false);
+
+    if (!boreas_calib_dir.empty()) {
+      if (tryFreezeFromBoreasCalib(boreas_calib_dir, boreas_use_ground_ipm)) {
+        RCLCPP_INFO(
+          get_logger(), "  Boreas IPM frozen from %s (%s, BEV %.0fx%.0f m @ %.4f m/px)",
+          boreas_calib_dir.c_str(), boreas_use_ground_ipm ? "ground-calib" : "manual-src",
+          frozen_params_.bev_width_m, frozen_params_.bev_length_m,
+          frozen_params_.bev_resolution_m_per_px);
+      } else {
+        RCLCPP_ERROR(
+          get_logger(), "Failed to configure Boreas IPM from %s; falling back to auto-IPM.",
+          boreas_calib_dir.c_str());
+      }
+    }
 
     // Manual/static IPM: freeze immediately from configured src points, so VP
     // detection never runs.
-    if (freeze_ipm_ && params_.use_manual_ipm && params_.ipm_src_points.size() >= 8) {
+    if (
+      !ipm_frozen_ && freeze_ipm_ && params_.use_manual_ipm && params_.ipm_src_points.size() >= 8) {
       if (tryFreeze(params_)) {
         RCLCPP_INFO(get_logger(), "  IPM frozen from manual ipm_src_points (no VP warmup).");
       }
-    } else if (freeze_ipm_) {
+    } else if (!ipm_frozen_ && freeze_ipm_) {
       RCLCPP_INFO(
-        get_logger(),
-        "  IPM auto-calibration: freeze after %d valid VP frames (hard cap %d).",
+        get_logger(), "  IPM auto-calibration: freeze after %d valid VP frames (hard cap %d).",
         calibration_frames_, max_calibration_frames_);
     }
   }
 
 private:
   void publishCvImage(
-    const image_transport::Publisher & pub,
-    const cv::Mat & mat,
+    const image_transport::Publisher & pub, const cv::Mat & mat,
     const std_msgs::msg::Header & header)
   {
     if (mat.empty()) {
@@ -112,6 +129,28 @@ private:
     homography_pub_->publish(msg);
   }
 
+  bool tryFreezeFromBoreasCalib(const std::string & calib_dir, bool use_ground_ipm)
+  {
+    BoreasCalib boreas;
+    if (!loadBoreasCalib(calib_dir, boreas)) {
+      RCLCPP_ERROR(get_logger(), "loadBoreasCalib failed: %s", calib_dir.c_str());
+      return false;
+    }
+
+    PipelineParams boreas_params = params_;
+    cv::Mat H_img2bev;
+    const bool configured =
+      use_ground_ipm ? configureBoreasGroundIpm(boreas, boreas_params, H_img2bev, nullptr)
+                     : configureBoreasManualIpmSrc(boreas, boreas_params, H_img2bev, nullptr);
+    if (!configured) {
+      RCLCPP_ERROR(get_logger(), "Boreas IPM configuration failed");
+      return false;
+    }
+
+    params_ = boreas_params;
+    return tryFreeze(boreas_params);
+  }
+
   // Build a persistent IPMTransformer from converged parameters and cache the
   // homography. Returns true once the fast warp-only path is armed.
   bool tryFreeze(PipelineParams frozen)
@@ -144,9 +183,9 @@ private:
     bev = prepareBevImage(bev);
     maskBevBottomExclude(bev, params_);
     publishHomography(frozen_H_, header);
+    cv::flip(bev, bev, 1);
     publishCvImage(bev_pub_, bev, header);
-    RCLCPP_INFO_THROTTLE(
-      get_logger(), *get_clock(), 5000, "IPM(frozen) %dx%d", bev.cols, bev.rows);
+    RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 5000, "IPM(frozen) %dx%d", bev.cols, bev.rows);
   }
 
   void onImage(const sensor_msgs::msg::Image::ConstSharedPtr & msg)
@@ -189,20 +228,16 @@ private:
       const bool timed_out = total_calib_frames_ >= max_calibration_frames_;
       if ((converged || timed_out) && tryFreeze(hg.params)) {
         RCLCPP_INFO(
-          get_logger(),
-          "IPM frozen after %d frames (%d valid VP, %s). VP detection now skipped.",
+          get_logger(), "IPM frozen after %d frames (%d valid VP, %s). VP detection now skipped.",
           total_calib_frames_, vp_valid_count_, converged ? "converged" : "timeout-fallback");
         return;
       }
     }
 
     RCLCPP_INFO_THROTTLE(
-      get_logger(), *get_clock(), 2000,
-      "IPM(calibrating %d/%d) %dx%d | vp_valid=%d fallback=%d",
-      vp_valid_count_, calibration_frames_,
-      hg.bev.cols, hg.bev.rows,
-      hg.vanishing_point.valid ? 1 : 0,
-      hg.used_fallback_roi ? 1 : 0);
+      get_logger(), *get_clock(), 2000, "IPM(calibrating %d/%d) %dx%d | vp_valid=%d fallback=%d",
+      vp_valid_count_, calibration_frames_, hg.bev.cols, hg.bev.rows,
+      hg.vanishing_point.valid ? 1 : 0, hg.used_fallback_roi ? 1 : 0);
   }
 
   PipelineParams params_;

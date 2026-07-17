@@ -1,0 +1,21 @@
+frontal_ipm_node:
+  ros__parameters:
+    image_topic: "/boreas/image"
+    frame_id: "camera"
+    image_transport: "compressed"
+    bev_topic: "/ipm/bev"
+    roi_debug_topic: "/ipm/debug/roi"
+    homography_topic: "/ipm/homography"
+
+    # Boreas metric IPM from packaged calib/ (manual src trapezoid, same as offline tool).
+    boreas_calib_dir: ""  # set by launch to share/boreas/calib
+    boreas_use_ground_ipm: false
+    freeze_ipm: true
+
+    # Ignored when boreas_calib_dir is set (auto-sized from ROI + P_camera).
+    bev_width_m: 20.0
+    bev_length_m: 60.0
+    bev_resolution_m_per_px: 0.05
+
+    use_manual_ipm: false
+    bev_bottom_exclude_px: 250.0

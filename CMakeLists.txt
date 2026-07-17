@@ -69,6 +69,7 @@ set(CORE_SOURCES
   src/preprocessing/auto_frontal_ipm.cpp
   src/preprocessing/boreas_calib.cpp
   src/preprocessing/edge_extractor.cpp
+  src/preprocessing/road_feature_segmenter.cpp
   src/voting/lie_hough_voter.cpp
   src/voting/line_hough_extractor.cpp
   src/voting/line_lie_hough_voter.cpp
@@ -97,6 +98,8 @@ set(CORE_SOURCES
   src/mosaic/bev_mosaic_accumulator.cpp
   src/mosaic/bev_registration.cpp
   src/mosaic/bev_orb_matcher.cpp
+  src/mosaic/pose_buffer.cpp
+  src/mosaic/odom_bev_mosaic_accumulator.cpp
   src/nodes/node_params.cpp
   src/visualization/visualization.cpp
   src/testing/synthetic_bev_generator.cpp
@@ -134,6 +137,7 @@ ament_target_dependencies(lie_lane_detection_core
   visualization_msgs
   std_msgs
   cv_bridge
+  tf2_msgs
 )
 
 # --- ROS nodes ---
@@ -248,6 +252,17 @@ target_link_libraries(estimate_frontal_homography lie_lane_detection_core ${Open
 add_executable(test_bev_mosaic_align src/tools/test_bev_mosaic_align.cpp)
 target_link_libraries(test_bev_mosaic_align lie_lane_detection_core ${OpenCV_LIBS})
 
+find_package(rosbag2_cpp REQUIRED)
+add_executable(boreas_ortho_mosaic_offline src/tools/boreas_ortho_mosaic_offline.cpp)
+target_link_libraries(boreas_ortho_mosaic_offline lie_lane_detection_core ${OpenCV_LIBS})
+ament_target_dependencies(boreas_ortho_mosaic_offline
+  rclcpp
+  sensor_msgs
+  cv_bridge
+  rosbag2_cpp
+  tf2_msgs
+)
+
 install(TARGETS
   lie_lane_detection_core
   lane_detector_node
@@ -264,6 +279,7 @@ install(TARGETS
   lane_detect_video_offline
   estimate_frontal_homography
   test_bev_mosaic_align
+  boreas_ortho_mosaic_offline
   compare_lane_detection
   generate_test_images
   ARCHIVE DESTINATION lib
@@ -277,6 +293,11 @@ install(DIRECTORY include/
 
 install(DIRECTORY config launch
   DESTINATION share/${PROJECT_NAME}
+)
+
+install(PROGRAMS
+  scripts/boreas_birdeye_param_publisher.py
+  DESTINATION lib/${PROJECT_NAME}
 )
 
 # --- Unit tests (mirror src/ layout) ---
@@ -315,6 +336,9 @@ if(BUILD_TESTING)
 
   ament_add_gtest(test_bev_mosaic test/mosaic/test_bev_mosaic.cpp)
   target_link_libraries(test_bev_mosaic lie_lane_detection_core)
+
+  ament_add_gtest(test_odom_bev_mosaic test/mosaic/test_odom_bev_mosaic.cpp)
+  target_link_libraries(test_odom_bev_mosaic lie_lane_detection_core)
 
   ament_add_gtest(test_ego_motion_estimator test/motion/test_ego_motion_estimator.cpp)
   target_link_libraries(test_ego_motion_estimator lie_lane_detection_core)

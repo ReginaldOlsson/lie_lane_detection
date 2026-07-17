@@ -66,6 +66,8 @@ public:
   {
     const std::string bev_topic = declare_parameter<std::string>("bev_topic", "/ipm/bev");
     const std::string image_topic = declare_parameter<std::string>("image_topic", "/camera/image_raw");
+    const std::string image_transport =
+      declare_parameter<std::string>("image_transport", "raw");
     const std::string homography_topic =
       declare_parameter<std::string>("homography_topic", "/ipm/homography");
     const std::string frontal_overlay_topic =
@@ -87,7 +89,7 @@ public:
     image_sub_ = image_transport::create_subscription(
       this, image_topic,
       std::bind(&BevLaneDetectorNode::onImage, this, std::placeholders::_1),
-      "raw", rmw_qos_profile_sensor_data);
+      image_transport, rmw_qos_profile_sensor_data);
 
     homography_sub_ = create_subscription<std_msgs::msg::Float64MultiArray>(
       homography_topic, rclcpp::QoS(10),

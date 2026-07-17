@@ -7,6 +7,8 @@
 namespace lie_lane_detection
 {
 
+class RoadFeatureSegmenter;
+
 struct BevDetectionResult
 {
   std::vector<LaneHypothesis> lanes;
@@ -14,6 +16,8 @@ struct BevDetectionResult
   cv::Mat edges;
   cv::Mat hough_slice;
   cv::Mat overlay;
+  cv::Mat road_feature_mask;
+  cv::Mat road_feature_debug;
   size_t edge_point_count{0};
   size_t line_segment_count{0};
   double elapsed_ms{0.0};
@@ -58,6 +62,9 @@ cv::Mat warpPerspectiveToBev(const cv::Mat & image_bgr, const PipelineParams & p
 /// configureParamsForBev()/configureParamsForPerspectiveIpm() to avoid
 /// re-deriving (and partially clobbering) the SE(2)/deform bin configuration.
 BevDetectionResult detectLanesInBev(
-  const cv::Mat & bev_bgr, PipelineParams params, bool configure_params = true);
+  const cv::Mat & bev_bgr,
+  PipelineParams params,
+  bool configure_params = true,
+  RoadFeatureSegmenter * road_segmenter = nullptr);
 
 }  // namespace lie_lane_detection

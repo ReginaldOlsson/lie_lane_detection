@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Publish Spatz BirdEyeParam for Boreas /ipm/bev (RViz birdeye_display).
+
+  With a bag that publishes /clock:
+    ros2 bag play /path/to/boreas_bag clock
+    ros2 launch lie_lane_detection boreas_birdeye_param.launch.xml
+
+  Together with the BEV pipeline:
+    ros2 launch lie_lane_detection boreas_bev_pipeline.launch.xml
+    ros2 launch lie_lane_detection boreas_birdeye_param.launch.xml
+-->
+<launch>
+  <arg name="use_sim_time" default="true"/>
+  <arg name="params_topic" default="/ipm/params"/>
+  <arg name="frame_id" default="camera_lidar"/>
+  <arg name="publish_rate_hz" default="1.0"/>
+
+  <!-- Boreas manual-IPM autosize (boreas_ortho_mosaic_offline / configureBoreasManualIpmSrc) -->
+  <arg name="height" default="1294"/>
+  <arg name="width" default="1448"/>
+  <arg name="resolution" default="143.240859"/>
+  <arg name="offset_x" default="-724.0"/>
+  <arg name="offset_y" default="0.0"/>
+  <arg name="offset_z" default="0.0"/>
+
+  <node pkg="lie_lane_detection" exec="boreas_birdeye_param_publisher.py"
+        name="boreas_birdeye_param_publisher" output="screen">
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <param name="params_topic" value="$(var params_topic)"/>
+    <param name="frame_id" value="$(var frame_id)"/>
+    <param name="publish_rate_hz" value="$(var publish_rate_hz)"/>
+    <param name="height" value="$(var height)"/>
+    <param name="width" value="$(var width)"/>
+    <param name="resolution" value="$(var resolution)"/>
+    <param name="offset_x" value="$(var offset_x)"/>
+    <param name="offset_y" value="$(var offset_y)"/>
+    <param name="offset_z" value="$(var offset_z)"/>
+  </node>
+</launch>

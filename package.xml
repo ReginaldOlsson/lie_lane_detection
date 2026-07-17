@@ -19,11 +19,15 @@
   <depend>tf2</depend>
   <depend>tf2_ros</depend>
   <depend>tf2_geometry_msgs</depend>
+  <depend>tf2_msgs</depend>
+  <depend>rosbag2_cpp</depend>
   <depend>sophus</depend>
   <depend>eigen</depend>
   <build_depend>libtbb-dev</build_depend>
   <build_depend>libceres-dev</build_depend>
   <exec_depend>libtbb12</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>spatz_interfaces</exec_depend>
 
   <test_depend>ament_cmake_gtest</test_depend>
 

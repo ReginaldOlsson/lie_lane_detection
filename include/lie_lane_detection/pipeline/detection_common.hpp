@@ -19,7 +19,18 @@ bool isTooCloseToExisting(
 bool passesQualityGate(
   const LaneHypothesis & lane,
   const PipelineParams & params,
-  double image_height);
+  double image_height,
+  const TemplateCurve * template_curve = nullptr);
+
+/// Pre-vote edge filter: drop gradients inconsistent with near-vertical BEV lanes.
+std::vector<EdgePoint> filterLaneOrientedEdges(
+  const std::vector<EdgePoint> & edges,
+  const PipelineParams & params);
+
+/// Post-extraction prune: relative score, parallel omega, output cap.
+std::vector<LaneHypothesis> pruneNoiseLaneHypotheses(
+  std::vector<LaneHypothesis> lanes,
+  const PipelineParams & params);
 
 /// Highest valid forward row in BEV (excludes bottom hood crop + edge margin).
 double bevEffectiveYMax(int bev_rows, const PipelineParams & params);
@@ -108,6 +119,7 @@ LaneHypothesis pickBestSeed(
   ManifoldRansac & ransac,
   const std::vector<LaneHypothesis> & accepted,
   const PipelineParams & params,
-  double image_height);
+  double image_height,
+  const TemplateCurve * template_curve = nullptr);
 
 }  // namespace lie_lane_detection

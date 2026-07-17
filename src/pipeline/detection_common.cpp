@@ -34,10 +34,92 @@ bool isTooCloseToExisting(
   return false;
 }
 
+namespace
+{
+
+bool edgeGradientAlignsWithTangent(
+  double edge_orientation_rad, double tangent_angle_rad, double max_dev_rad)
+{
+  const double g1 = tangent_angle_rad + CV_PI * 0.5;
+  const double g2 = tangent_angle_rad - CV_PI * 0.5;
+  return angleDiffRad(edge_orientation_rad, g1) <= max_dev_rad ||
+         angleDiffRad(edge_orientation_rad, g2) <= max_dev_rad;
+}
+
+double edgeOrientationRad(double orientation)
+{
+  // EdgeExtractor stores Sobel/steerable phase in degrees.
+  if (std::abs(orientation) > CV_PI + 0.01) {
+    return orientation * CV_PI / 180.0;
+  }
+  return orientation;
+}
+
+bool edgeGradientSupportsVerticalLane(double edge_orientation, double max_dev_rad)
+{
+  const double orient_rad = edgeOrientationRad(edge_orientation);
+  return longitudinalDeviationRad(orient_rad + CV_PI * 0.5) <= max_dev_rad;
+}
+
+double laneOrientationSupportRatio(
+  const LaneHypothesis & lane,
+  const PipelineParams & params,
+  const TemplateCurve * template_curve)
+{
+  if (lane.supporting_edges.empty()) {
+    return 0.0;
+  }
+  const double max_dev = params.lane_edge_orientation_max_dev_rad;
+  int aligned = 0;
+  for (const auto & e : lane.supporting_edges) {
+    if (template_curve != nullptr) {
+      double t_near = 0.0;
+      template_curve->distanceToCurve(lane.xi, Vec2(e.x, e.y), &t_near);
+      const Vec2 tan = template_curve->tangentAt(lane.xi, t_near);
+      const double tangent_angle = std::atan2(tan.y(), tan.x());
+      if (edgeGradientAlignsWithTangent(
+          edgeOrientationRad(e.orientation), tangent_angle, max_dev)) {
+        ++aligned;
+      }
+    } else if (edgeGradientSupportsVerticalLane(e.orientation, max_dev)) {
+      ++aligned;
+    }
+  }
+  return static_cast<double>(aligned) / static_cast<double>(lane.supporting_edges.size());
+}
+
+bool passesInlierContinuity(
+  const std::vector<EdgePoint> & edges,
+  double max_gap_px,
+  double max_gap_ratio)
+{
+  if (edges.size() < 4) {
+    return true;
+  }
+  std::vector<double> ys;
+  ys.reserve(edges.size());
+  for (const auto & e : edges) {
+    ys.push_back(e.y);
+  }
+  std::sort(ys.begin(), ys.end());
+  int large_gaps = 0;
+  for (size_t i = 1; i < ys.size(); ++i) {
+    if (ys[i] - ys[i - 1] > max_gap_px) {
+      ++large_gaps;
+    }
+  }
+  const double ratio =
+    static_cast<double>(large_gaps) / static_cast<double>(std::max<size_t>(1, ys.size() - 1));
+  return ratio <= max_gap_ratio;
+}
+
+}  // namespace
+
 bool passesQualityGate(
   const LaneHypothesis & lane,
   const PipelineParams & params,
-  double image_height)
+  double image_height,
+  const TemplateCurve * template_curve)
 {
   if (lane.inlier_ratio < params.min_inlier_ratio) {
     return false;
@@ -48,20 +130,111 @@ bool passesQualityGate(
   if (isBorderLane(lane, params)) {
     return false;
   }
+  if (std::abs(lane.xi[3]) > params.max_lane_curvature_abs ||
+    std::abs(lane.xi[4]) > params.max_lane_sigma_abs)
+  {
+    return false;
+  }
 
   if (!lane.supporting_edges.empty() && image_height > 1.0) {
     double y_min = lane.supporting_edges.front().y;
-    double y_max = lane.supporting_edges.front().y;
+    double y_max_edge = lane.supporting_edges.front().y;
     for (const auto & e : lane.supporting_edges) {
       y_min = std::min(y_min, e.y);
-      y_max = std::max(y_max, e.y);
+      y_max_edge = std::max(y_max_edge, e.y);
     }
-    const double coverage = (y_max - y_min) / image_height;
+    const double span = y_max_edge - y_min;
+    const double coverage = span / image_height;
     if (coverage < params.min_inlier_y_coverage) {
       return false;
     }
+    const double min_span_px = params.min_lane_inlier_y_span_px > 0.0 ?
+      params.min_lane_inlier_y_span_px :
+      params.min_inlier_y_coverage * image_height;
+    if (span < min_span_px) {
+      return false;
+    }
+    if (!passesInlierContinuity(
+        lane.supporting_edges, params.max_lane_inlier_gap_px, params.max_lane_inlier_gap_ratio))
+    {
+      return false;
+    }
+  }
+
+  if (params.use_lane_edge_orientation_gate &&
+    laneOrientationSupportRatio(lane, params, template_curve) <
+    params.min_lane_edge_orientation_ratio)
+  {
+    return false;
   }
   return true;
+}
+
+std::vector<EdgePoint> filterLaneOrientedEdges(
+  const std::vector<EdgePoint> & edges,
+  const PipelineParams & params)
+{
+  if (!params.use_lane_edge_orientation_gate || edges.empty()) {
+    return edges;
+  }
+  std::vector<EdgePoint> kept;
+  kept.reserve(edges.size());
+  const double max_dev = params.lane_edge_orientation_max_dev_rad;
+  for (const auto & e : edges) {
+    if (edgeGradientSupportsVerticalLane(e.orientation, max_dev)) {
+      kept.push_back(e);
+    }
+  }
+  return kept;
+}
+
+std::vector<LaneHypothesis> pruneNoiseLaneHypotheses(
+  std::vector<LaneHypothesis> lanes,
+  const PipelineParams & params)
+{
+  if (lanes.empty()) {
+    return lanes;
+  }
+
+  if (params.min_lane_relative_score > 0.0) {
+    double best_score = lanes.front().score;
+    for (const auto & lane : lanes) {
+      best_score = std::max(best_score, lane.score);
+    }
+    const double min_score = params.min_lane_relative_score * best_score;
+    lanes.erase(
+      std::remove_if(
+        lanes.begin(), lanes.end(),
+        [min_score](const LaneHypothesis & lane) {return lane.score < min_score;}),
+      lanes.end());
+  }
+
+  if (lanes.size() >= 3 && params.max_lane_omega_deviation_rad > 0.0) {
+    std::vector<double> omegas;
+    omegas.reserve(lanes.size());
+    for (const auto & lane : lanes) {
+      omegas.push_back(lane.xi[2]);
+    }
+    std::nth_element(omegas.begin(), omegas.begin() + omegas.size() / 2, omegas.end());
+    const double median_omega = omegas[omegas.size() / 2];
+    lanes.erase(
+      std::remove_if(
+        lanes.begin(), lanes.end(),
+        [&](const LaneHypothesis & lane) {
+          return std::abs(lane.xi[2] - median_omega) > params.max_lane_omega_deviation_rad;
+        }),
+      lanes.end());
+  }
+
+  if (params.max_output_lanes > 0 &&
+    static_cast<int>(lanes.size()) > params.max_output_lanes)
+  {
+    std::sort(lanes.begin(), lanes.end(), [](const LaneHypothesis & a, const LaneHypothesis & b) {
+        return a.score > b.score;
+      });
+    lanes.resize(static_cast<size_t>(params.max_output_lanes));
+  }
+  return lanes;
 }
 
 double bevEffectiveYMax(int bev_rows, const PipelineParams & params)
@@ -388,7 +561,8 @@ LaneHypothesis pickBestSeed(
   ManifoldRansac & ransac,
   const std::vector<LaneHypothesis> & accepted,
   const PipelineParams & params,
-  double image_height)
+  double image_height,
+  const TemplateCurve * template_curve)
 {
   // Rank all seeds cheaply with the raw RANSAC consensus (no Ceres), then pay
   // for the expensive non-linear refinement on the single winner only. Fitting
@@ -407,7 +581,7 @@ LaneHypothesis pickBestSeed(
   double best_metric = -1.0;
   for (size_t i = 0; i < fitted.size(); ++i) {
     const auto & hyp = fitted[i];
-    if (!passesQualityGate(hyp, params, image_height)) {
+    if (!passesQualityGate(hyp, params, image_height, template_curve)) {
       continue;
     }
     if (isTooCloseToExisting(hyp, accepted, params.min_lane_separation_px)) {
@@ -426,7 +600,7 @@ LaneHypothesis pickBestSeed(
 
   // Full refinement on the winning seed, then re-validate.
   LaneHypothesis best = ransac.fit(seeds[static_cast<size_t>(best_idx)], edges, /*refine=*/true);
-  if (!passesQualityGate(best, params, image_height) ||
+  if (!passesQualityGate(best, params, image_height, template_curve) ||
     isTooCloseToExisting(best, accepted, params.min_lane_separation_px))
   {
     return LaneHypothesis{};
