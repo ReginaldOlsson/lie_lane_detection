@@ -195,6 +195,14 @@ ament_target_dependencies(frontal_ipm_node
   image_transport
 )
 
+add_executable(boreas_ipm_node src/nodes/boreas_ipm_node.cpp)
+target_link_libraries(boreas_ipm_node lie_lane_detection_core)
+ament_target_dependencies(boreas_ipm_node
+  rclcpp
+  sensor_msgs
+  cv_bridge
+)
+
 add_executable(bev_lane_detector_node src/nodes/bev_lane_detector_node.cpp)
 target_link_libraries(bev_lane_detector_node lie_lane_detection_core)
 ament_target_dependencies(bev_lane_detector_node
@@ -270,6 +278,7 @@ install(TARGETS
   video_image_publisher_node
   tracked_lane_detector_node
   frontal_ipm_node
+  boreas_ipm_node
   bev_lane_detector_node
   bev_mosaic_node
   intensity_strip_lane_detector_node

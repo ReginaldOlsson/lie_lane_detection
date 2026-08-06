@@ -3,7 +3,6 @@
 #include "lie_lane_detection/pipeline/detection_common.hpp"
 #include "lie_lane_detection/pipeline/lane_detection_runner.hpp"
 #include "lie_lane_detection/preprocessing/auto_frontal_ipm.hpp"
-#include "lie_lane_detection/preprocessing/boreas_calib.hpp"
 #include "lie_lane_detection/preprocessing/ipm_transformer.hpp"
 
 #include <cv_bridge/cv_bridge.hpp>
@@ -61,31 +60,13 @@ public:
     RCLCPP_INFO(
       get_logger(), "  debug: %s, homography: %s", roi_topic.c_str(), homography_topic.c_str());
 
-    const std::string boreas_calib_dir = declare_parameter<std::string>("boreas_calib_dir", "");
-    const bool boreas_use_ground_ipm = declare_parameter<bool>("boreas_use_ground_ipm", false);
-
-    if (!boreas_calib_dir.empty()) {
-      if (tryFreezeFromBoreasCalib(boreas_calib_dir, boreas_use_ground_ipm)) {
-        RCLCPP_INFO(
-          get_logger(), "  Boreas IPM frozen from %s (%s, BEV %.0fx%.0f m @ %.4f m/px)",
-          boreas_calib_dir.c_str(), boreas_use_ground_ipm ? "ground-calib" : "manual-src",
-          frozen_params_.bev_width_m, frozen_params_.bev_length_m,
-          frozen_params_.bev_resolution_m_per_px);
-      } else {
-        RCLCPP_ERROR(
-          get_logger(), "Failed to configure Boreas IPM from %s; falling back to auto-IPM.",
-          boreas_calib_dir.c_str());
-      }
-    }
-
     // Manual/static IPM: freeze immediately from configured src points, so VP
     // detection never runs.
-    if (
-      !ipm_frozen_ && freeze_ipm_ && params_.use_manual_ipm && params_.ipm_src_points.size() >= 8) {
+    if (freeze_ipm_ && params_.use_manual_ipm && params_.ipm_src_points.size() >= 8) {
       if (tryFreeze(params_)) {
         RCLCPP_INFO(get_logger(), "  IPM frozen from manual ipm_src_points (no VP warmup).");
       }
-    } else if (!ipm_frozen_ && freeze_ipm_) {
+    } else if (freeze_ipm_) {
       RCLCPP_INFO(
         get_logger(), "  IPM auto-calibration: freeze after %d valid VP frames (hard cap %d).",
         calibration_frames_, max_calibration_frames_);
@@ -127,28 +108,6 @@ private:
     msg.data[10] = static_cast<double>(header.stamp.nanosec);
     msg.layout.data_offset = 0;
     homography_pub_->publish(msg);
-  }
-
-  bool tryFreezeFromBoreasCalib(const std::string & calib_dir, bool use_ground_ipm)
-  {
-    BoreasCalib boreas;
-    if (!loadBoreasCalib(calib_dir, boreas)) {
-      RCLCPP_ERROR(get_logger(), "loadBoreasCalib failed: %s", calib_dir.c_str());
-      return false;
-    }
-
-    PipelineParams boreas_params = params_;
-    cv::Mat H_img2bev;
-    const bool configured =
-      use_ground_ipm ? configureBoreasGroundIpm(boreas, boreas_params, H_img2bev, nullptr)
-                     : configureBoreasManualIpmSrc(boreas, boreas_params, H_img2bev, nullptr);
-    if (!configured) {
-      RCLCPP_ERROR(get_logger(), "Boreas IPM configuration failed");
-      return false;
-    }
-
-    params_ = boreas_params;
-    return tryFreeze(boreas_params);
   }
 
   // Build a persistent IPMTransformer from converged parameters and cache the

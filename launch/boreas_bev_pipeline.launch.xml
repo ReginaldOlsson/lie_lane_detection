@@ -3,7 +3,7 @@
   Boreas rosbag BEV lane-detection pipeline.
 
   Terminal 1 (sim time from bag /clock):
-    ros2 bag play /home/mosal/autoware/boreas_bag
+    ros2 bag play /home/mosal/rosbags/boreas_bag clock
 
   Terminal 2:
     ros2 launch lie_lane_detection boreas_bev_pipeline.launch.xml
@@ -14,23 +14,24 @@
     rqt_image_view /lanes/detect/frontal_overlay
 -->
 <launch>
-  <arg name="bag_path" default="/home/mosal/autoware/boreas_bag" description="Rosbag directory (for docs only; play separately)"/>
+  <arg name="bag_path" default="/home/mosal/rosbags/boreas_bag" description="Rosbag directory (for docs only; play separately)"/>
   <arg name="boreas_calib_dir" default="$(find-pkg-share lie_lane_detection)/config/boreas/calib"/>
   <arg name="image_topic" default="/boreas/image"/>
+  <arg name="camera_info_topic" default="/boreas/camera_info"/>
   <arg name="image_transport" default="compressed"/>
   <arg name="bev_topic" default="/ipm/bev"/>
   <arg name="frontal_overlay_topic" default="/lanes/detect/frontal_overlay"/>
   <arg name="bev_bottom_exclude_px" default="100.0"/>
   <arg name="use_sim_time" default="true"/>
 
-  <node pkg="lie_lane_detection" exec="frontal_ipm_node" name="frontal_ipm_node" output="screen">
+  <node pkg="lie_lane_detection" exec="boreas_ipm_node" name="boreas_ipm_node" output="screen">
     <param from="$(find-pkg-share lie_lane_detection)/config/boreas_ipm.yaml"/>
     <param name="use_sim_time" value="$(var use_sim_time)"/>
     <param name="boreas_calib_dir" value="$(var boreas_calib_dir)"/>
     <param name="image_topic" value="$(var image_topic)"/>
+    <param name="camera_info_topic" value="$(var camera_info_topic)"/>
     <param name="image_transport" value="$(var image_transport)"/>
     <param name="bev_topic" value="$(var bev_topic)"/>
-    <param name="bev_bottom_exclude_px" value="$(var bev_bottom_exclude_px)"/>
   </node>
 
   <node pkg="lie_lane_detection" exec="bev_lane_detector_node" name="bev_lane_detector_node" output="screen">

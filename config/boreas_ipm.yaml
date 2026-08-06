@@ -1,21 +1,27 @@
-frontal_ipm_node:
+boreas_ipm_node:
   ros__parameters:
     image_topic: "/boreas/image"
+    camera_info_topic: "/boreas/camera_info"
     frame_id: "camera"
     image_transport: "compressed"
     bev_topic: "/ipm/bev"
-    roi_debug_topic: "/ipm/debug/roi"
-    homography_topic: "/ipm/homography"
 
-    # Boreas metric IPM from packaged calib/ (manual src trapezoid, same as offline tool).
+    # Boreas metric IPM from packaged calib/ + live camera_info.
     boreas_calib_dir: ""  # set by launch to share/boreas/calib
     boreas_use_ground_ipm: false
-    freeze_ipm: true
+    flip_horizontal: true
 
-    # Ignored when boreas_calib_dir is set (auto-sized from ROI + P_camera).
+    # Performance: decode JPEG at 1/N and cap BEV size (targets ~30 Hz on CPU).
+    decode_reduce: 4          # 1|2|4|8  (OpenCV reduced JPEG decode)
+    max_bev_width_px: 320
+    max_bev_height_px: 400
+    warp_interpolation: 1     # cv::INTER_LINEAR
+
+    # Cyan 5x5 grid inside IPM src ROI (warps into BEV to show distortion).
+    draw_src_grid: false
+    src_grid_n: 5
+
+    # Ignored when calib configures ROI (auto-sized from src + P/K).
     bev_width_m: 20.0
     bev_length_m: 60.0
     bev_resolution_m_per_px: 0.05
-
-    use_manual_ipm: false
-    bev_bottom_exclude_px: 250.0
