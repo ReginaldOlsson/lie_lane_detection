@@ -1,6 +1,6 @@
 # Hybrid road segmentation (geometry + tiny AI)
 
-Classical Lie-Hough + RANSAC is strong on clean asphalt but struggles when **snow, slush, and glare** create dense false edges. The hybrid path adds a **small ONNX segmenter** that runs on the BEV image *before* edge extraction.
+Classical Lie-Hough + RANSAC is strong on clean asphalt but struggles when **snow, slush, and glare** create dense false edges. The hybrid path adds a **small ONNX segmenter** that runs on the BEV image _before_ edge extraction.
 
 ## Architecture
 
@@ -17,12 +17,12 @@ The geometric pipeline is unchanged; AI only **gates which pixels may produce ed
 
 ## Model classes
 
-| ID | Name   | Use |
-|----|--------|-----|
-| 0  | ignore | sky, vehicles, curbs, off-road |
-| 1  | road   | drivable surface |
-| 2  | lane   | lane paint |
-| 3  | snow   | snow, slush, glare clutter |
+| ID  | Name   | Use                            |
+| --- | ------ | ------------------------------ |
+| 0   | ignore | sky, vehicles, curbs, off-road |
+| 1   | road   | drivable surface               |
+| 2   | lane   | lane paint                     |
+| 3   | snow   | snow, slush, glare clutter     |
 
 **Drivable mask** = `(road ∨ lane) ∧ ¬snow` using configurable thresholds in `PipelineParams`.
 
@@ -62,14 +62,14 @@ Snow-heavy sequences should be **oversampled** in training. The loss uses higher
 
 ## Parameters (`PipelineParams` / yaml)
 
-| Param | Default | Meaning |
-|-------|---------|---------|
-| `use_road_feature_segmenter` | false | Enable hybrid gate |
-| `road_segmenter_onnx_path` | "" | ONNX file |
-| `road_segmenter_input_width/height` | 256 / 128 | Model input size |
-| `road_segmenter_road_threshold` | 0.45 | Min P(road) |
-| `road_segmenter_lane_threshold` | 0.35 | Min P(lane) |
-| `road_segmenter_snow_reject_threshold` | 0.55 | Reject if P(snow) above |
+| Param                                  | Default   | Meaning                 |
+| -------------------------------------- | --------- | ----------------------- |
+| `use_road_feature_segmenter`           | false     | Enable hybrid gate      |
+| `road_segmenter_onnx_path`             | ""        | ONNX file               |
+| `road_segmenter_input_width/height`    | 256 / 128 | Model input size        |
+| `road_segmenter_road_threshold`        | 0.45      | Min P(road)             |
+| `road_segmenter_lane_threshold`        | 0.35      | Min P(lane)             |
+| `road_segmenter_snow_reject_threshold` | 0.55      | Reject if P(snow) above |
 
 ## Next steps
 

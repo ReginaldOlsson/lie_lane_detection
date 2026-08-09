@@ -1,11 +1,11 @@
 #pragma once
 
-#include <string>
+#include "lie_lane_detection/core/types.hpp"
 
 #include <opencv2/core.hpp>
 #include <opencv2/dnn.hpp>
 
-#include "lie_lane_detection/core/types.hpp"
+#include <string>
 
 namespace lie_lane_detection
 {
@@ -34,7 +34,7 @@ public:
   };
 
   bool load(const std::string & onnx_path);
-  bool isReady() const {return ready_;}
+  bool isReady() const { return ready_; }
 
   void setInputSize(int width, int height);
   void updateParams(const PipelineParams & params);

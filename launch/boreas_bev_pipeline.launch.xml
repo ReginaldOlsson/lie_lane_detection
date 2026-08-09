@@ -24,6 +24,11 @@
   <arg name="bev_bottom_exclude_px" default="100.0"/>
   <arg name="use_sim_time" default="true"/>
 
+  <arg name="rviz" default="true" description="launch rviz"/>
+  <arg name="rviz_config_name" default="config.rviz" description="rviz config name"/>
+  <arg name="rviz_config" default="$(find-pkg-share lie_lane_detection)/rviz/$(var rviz_config_name)" description="rviz config path"/>
+  <arg name="rviz_respawn" default="true"/>
+
   <node pkg="lie_lane_detection" exec="boreas_ipm_node" name="boreas_ipm_node" output="screen">
     <param from="$(find-pkg-share lie_lane_detection)/config/boreas_ipm.yaml"/>
     <param name="use_sim_time" value="$(var use_sim_time)"/>
@@ -43,4 +48,11 @@
     <param name="frontal_overlay_topic" value="$(var frontal_overlay_topic)"/>
     <param name="bev_bottom_exclude_px" value="$(var bev_bottom_exclude_px)"/>
   </node>
+
+  <group>
+    <node pkg="rviz2" exec="rviz2" name="line_detection_rviz2" output="screen" args="-d $(var rviz_config)" if="$(var rviz)" respawn="$(var rviz_respawn)">
+      <env name="QT_QPA_PLATFORMTHEME" value="qt5ct"/>
+      <param name="use_sim_time" value="$(var use_sim_time)"/>
+    </node>
+  </group>
 </launch>

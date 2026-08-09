@@ -1,14 +1,13 @@
 #include "lie_lane_detection/voting/dual_space_pruner.hpp"
 
-#include <cmath>
-
 #include <opencv2/core.hpp>
+
+#include <cmath>
 
 namespace lie_lane_detection
 {
 
-DualSpacePruner::DualSpacePruner(const PipelineParams & params)
-: params_(params)
+DualSpacePruner::DualSpacePruner(const PipelineParams & params) : params_(params)
 {
 }
 

@@ -38,21 +38,21 @@ source install/setup.bash
 
 ### Options
 
-| Flag | Default | Meaning |
-|------|---------|---------|
-| `--rosbag` | (required) | Rosbag2 directory |
-| `--calib-dir` | (required) | Boreas `calib/` folder |
-| `--output` | `/tmp/boreas_ortho.png` | Output mosaic PNG |
-| `--meta` | `<output>.yaml` | Canvas origin, scale, frame count |
-| `--image-topic` | `/boreas/image/compressed` | Compressed camera topic |
-| `--parent-frame` | `map` | Pose parent frame |
-| `--child-frame` | `base_link` | Pose child frame |
-| `--decimate` | `5` | Process every Nth image |
-| `--max-frames` | `500` | Cap placed frames |
-| `--max-pose-delta-ms` | `50` | Max TF lookup gap |
-| `--pose-yaw-offset-deg` | `0` | Body-frame yaw tweak |
-| `--pose-lateral-offset-m` | `0` | Body-frame lateral tweak |
-| `--pose-forward-offset-m` | `0` | Body-frame forward tweak |
+| Flag                      | Default                    | Meaning                           |
+| ------------------------- | -------------------------- | --------------------------------- |
+| `--rosbag`                | (required)                 | Rosbag2 directory                 |
+| `--calib-dir`             | (required)                 | Boreas `calib/` folder            |
+| `--output`                | `/tmp/boreas_ortho.png`    | Output mosaic PNG                 |
+| `--meta`                  | `<output>.yaml`            | Canvas origin, scale, frame count |
+| `--image-topic`           | `/boreas/image/compressed` | Compressed camera topic           |
+| `--parent-frame`          | `map`                      | Pose parent frame                 |
+| `--child-frame`           | `base_link`                | Pose child frame                  |
+| `--decimate`              | `5`                        | Process every Nth image           |
+| `--max-frames`            | `500`                      | Cap placed frames                 |
+| `--max-pose-delta-ms`     | `50`                       | Max TF lookup gap                 |
+| `--pose-yaw-offset-deg`   | `0`                        | Body-frame yaw tweak              |
+| `--pose-lateral-offset-m` | `0`                        | Body-frame lateral tweak          |
+| `--pose-forward-offset-m` | `0`                        | Body-frame forward tweak          |
 
 ## Alignment notes
 

@@ -1,12 +1,12 @@
 #pragma once
 
-#include <cstdint>
-#include <cmath>
-#include <unordered_map>
+#include "lie_lane_detection/core/types.hpp"
 
 #include <sophus/se2.hpp>
 
-#include "lie_lane_detection/core/types.hpp"
+#include <cmath>
+#include <cstdint>
+#include <unordered_map>
 
 namespace lie_lane_detection
 {

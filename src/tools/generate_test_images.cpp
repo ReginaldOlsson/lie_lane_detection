@@ -3,19 +3,19 @@
 // Usage:
 //   generate_test_images --output /path/to/dir [--detect]
 
+#include "lie_lane_detection/pipeline/lane_detection_runner.hpp"
+#include "lie_lane_detection/testing/synthetic_bev_generator.hpp"
+
+#include <opencv2/imgcodecs.hpp>
+
 #include <algorithm>
 #include <cmath>
-#include <fstream>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <limits>
 #include <string>
 #include <vector>
-
-#include <opencv2/imgcodecs.hpp>
-
-#include "lie_lane_detection/pipeline/lane_detection_runner.hpp"
-#include "lie_lane_detection/testing/synthetic_bev_generator.hpp"
 
 namespace fs = std::filesystem;
 
@@ -41,10 +41,8 @@ static lie_lane_detection::PipelineParams paramsForSynthetic(const cv::Mat & bev
 }
 
 static void writeCurveEvaluation(
-  const fs::path & out_dir,
-  const std::vector<lie_lane_detection::XiVector> & gt,
-  const std::vector<lie_lane_detection::LaneHypothesis> & detected,
-  double elapsed_ms)
+  const fs::path & out_dir, const std::vector<lie_lane_detection::XiVector> & gt,
+  const std::vector<lie_lane_detection::LaneHypothesis> & detected, double elapsed_ms)
 {
   std::ofstream eval(out_dir / "curve_eval.txt");
   eval << "Curve / pose evaluation (greedy vx match)\n";
@@ -94,29 +92,27 @@ static void writeCurveEvaluation(
     eval << "match gt[" << best_j << "] vs lane " << lane.lane_id << "\n";
     eval << "  dvx=" << err_vx << " dw=" << err_w << " dk=" << err_k << " ds=" << err_s << "\n";
     eval << "  gt  (vx,w,k,s)=(" << g[0] << "," << g[2] << "," << g[3] << "," << g[4] << ")\n";
-    eval << "  det (vx,w,k,s)=(" << lane.xi[0] << "," << lane.xi[2] << "," << lane.xi[3]
-         << "," << lane.xi[4] << ")\n\n";
+    eval << "  det (vx,w,k,s)=(" << lane.xi[0] << "," << lane.xi[2] << "," << lane.xi[3] << ","
+         << lane.xi[4] << ")\n\n";
   }
 
   for (size_t j = 0; j < gt.size(); ++j) {
     if (!gt_used[j]) {
-      eval << "missed gt[" << j << "] vx=" << gt[j][0] << " k=" << gt[j][3] << " s=" << gt[j][4] << "\n";
+      eval << "missed gt[" << j << "] vx=" << gt[j][0] << " k=" << gt[j][3] << " s=" << gt[j][4]
+           << "\n";
     }
   }
 
   if (matched > 0) {
     eval << "\nMean abs error (matched): vx=" << (sum_vx / matched)
-         << " omega=" << (sum_omega / matched)
-         << " kappa=" << (sum_kappa / matched)
+         << " omega=" << (sum_omega / matched) << " kappa=" << (sum_kappa / matched)
          << " sigma=" << (sum_sigma / matched) << "\n";
   }
   eval << "Recall: " << matched << "/" << gt.size() << "\n";
 }
 
 static void runDetection(
-  const cv::Mat & bev,
-  const fs::path & out_dir,
-  const lie_lane_detection::PipelineParams & params,
+  const cv::Mat & bev, const fs::path & out_dir, const lie_lane_detection::PipelineParams & params,
   const std::vector<lie_lane_detection::XiVector> & ground_truth)
 {
   cv::Mat prepared = bev.clone();
@@ -136,12 +132,9 @@ static void runDetection(
   report << "Elapsed ms: " << result.elapsed_ms << "\n";
   report << "Merge events: " << result.merges.size() << "\n";
   for (const auto & lane : result.lanes) {
-    report << "lane " << lane.lane_id
-           << " vx=" << lane.xi[0]
-           << " w=" << lane.xi[2]
-           << " k=" << lane.xi[3]
-           << " s=" << lane.xi[4]
-           << " inliers=" << lane.inlier_ratio << "\n";
+    report << "lane " << lane.lane_id << " vx=" << lane.xi[0] << " w=" << lane.xi[2]
+           << " k=" << lane.xi[3] << " s=" << lane.xi[4] << " inliers=" << lane.inlier_ratio
+           << "\n";
   }
 
   writeCurveEvaluation(out_dir, ground_truth, result.lanes, result.elapsed_ms);
@@ -159,10 +152,9 @@ int main(int argc, char ** argv)
     } else if (arg == "--detect") {
       run_detect = true;
     } else if (arg == "--help" || arg == "-h") {
-      std::cout <<
-        "Usage: generate_test_images [--output DIR] [--detect]\n"
-        "  Generates 9 synthetic BEV test scenes with ground-truth metadata.\n"
-        "  --detect  Also run lane detection and save overlay per scene.\n";
+      std::cout << "Usage: generate_test_images [--output DIR] [--detect]\n"
+                   "  Generates 9 synthetic BEV test scenes with ground-truth metadata.\n"
+                   "  --detect  Also run lane detection and save overlay per scene.\n";
       return 0;
     }
   }
@@ -199,8 +191,8 @@ int main(int argc, char ** argv)
     gt << "Expected boundaries: " << scene.ground_truth_xi.size() << "\n";
     for (size_t i = 0; i < scene.ground_truth_xi.size(); ++i) {
       const auto & xi = scene.ground_truth_xi[i];
-      gt << "  gt[" << i << "] vx=" << xi[0] << " vy=" << xi[1]
-         << " w=" << xi[2] << " k=" << xi[3] << " s=" << xi[4] << "\n";
+      gt << "  gt[" << i << "] vx=" << xi[0] << " vy=" << xi[1] << " w=" << xi[2] << " k=" << xi[3]
+         << " s=" << xi[4] << "\n";
     }
 
     index << scene.name << "/\n";

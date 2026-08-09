@@ -1,16 +1,16 @@
 #include "lie_lane_detection/voting/line_lie_hough_voter.hpp"
 
+#include "lie_lane_detection/common/parallel.hpp"
+#include "lie_lane_detection/voting/sparse_accumulator.hpp"
+
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <utility>
 #include <vector>
-
-#include <opencv2/core.hpp>
-#include <opencv2/imgproc.hpp>
-
-#include "lie_lane_detection/common/parallel.hpp"
-#include "lie_lane_detection/voting/sparse_accumulator.hpp"
 
 namespace lie_lane_detection
 {
@@ -35,8 +35,7 @@ inline int vxBinForX(double x, int vx_bins, double vx_min, double vx_max)
 
 inline int vxSearchRadius(double vote_threshold_px, int vx_bins, double vx_min, double vx_max)
 {
-  const double bin_width =
-    (vx_max - vx_min) / static_cast<double>(std::max(vx_bins - 1, 1));
+  const double bin_width = (vx_max - vx_min) / static_cast<double>(std::max(vx_bins - 1, 1));
   return std::max(1, static_cast<int>(std::ceil(vote_threshold_px / bin_width)) + 1);
 }
 
@@ -57,15 +56,15 @@ LineLieHoughVoter::LineLieHoughVoter(const PipelineParams & params, TemplateCurv
 }
 
 void LineLieHoughVoter::binIndicesToXiComponents(
-  int ix, int iy, int io, int ik, int is,
-  double & vx, double & vy, double & omega, double & kappa, double & sigma) const
+  int ix, int iy, int io, int ik, int is, double & vx, double & vy, double & omega, double & kappa,
+  double & sigma) const
 {
   const auto lerp = [](int i, int n, double vmin, double vmax) {
-      if (n <= 1) {
-        return vmin;
-      }
-      return vmin + (vmax - vmin) * static_cast<double>(i) / static_cast<double>(n - 1);
-    };
+    if (n <= 1) {
+      return vmin;
+    }
+    return vmin + (vmax - vmin) * static_cast<double>(i) / static_cast<double>(n - 1);
+  };
 
   vx = lerp(ix, params_.se2_vx_bins, params_.se2_vx_min, params_.se2_vx_max);
   vy = lerp(iy, params_.se2_vy_bins, params_.se2_vy_min, params_.se2_vy_max);
@@ -87,10 +86,7 @@ bool LineLieHoughVoter::isPeakSeparated(const XiVector & a, const XiVector & b) 
 }
 
 bool LineLieHoughVoter::lineSupportsXi(
-  const LineSegment & line,
-  const XiVector & xi,
-  double vote_thresh_sq,
-  double angle_thresh) const
+  const LineSegment & line, const XiVector & xi, double vote_thresh_sq, double angle_thresh) const
 {
   // SE(2) adjoint: evaluate segment in hypothesis-local frame (translation removed).
   const Sophus::SE2d g_inv = xiToSE2(xi).inverse();
@@ -123,8 +119,7 @@ bool LineLieHoughVoter::lineSupportsXi(
 }
 
 std::vector<LaneHypothesis> LineLieHoughVoter::vote(
-  const std::vector<LineSegment> & lines,
-  cv::Mat * hough_debug_slice)
+  const std::vector<LineSegment> & lines, cv::Mat * hough_debug_slice)
 {
   const int vx_bins = params_.se2_vx_bins;
   const int vy_bins = params_.se2_vy_bins;
@@ -141,10 +136,7 @@ std::vector<LaneHypothesis> LineLieHoughVoter::vote(
   const int is_mid = std::max(0, params_.sigma_bins / 2);
   const int ik_hi = std::max(0, params_.kappa_bins - 1);
   const std::vector<std::pair<int, int>> deform_presets = {
-    {ik_mid, is_mid},
-    {ik_hi, is_mid},
-    {0, is_mid},
-    {ik_mid, std::max(0, params_.sigma_bins - 1)},
+    {ik_mid, is_mid}, {ik_hi, is_mid}, {0, is_mid}, {ik_mid, std::max(0, params_.sigma_bins - 1)},
     {ik_mid, 0},
   };
 
@@ -171,19 +163,19 @@ std::vector<LaneHypothesis> LineLieHoughVoter::vote(
   const double angle_thresh = params_.line_angle_threshold_rad;
 
   auto minDistanceAndAngleOk = [&](int ix, int iy, int io, const LineSegment & line) {
-      for (const auto & [ik, is] : deform_presets) {
-        const XiVector xi = binToXi(ix, iy, io, ik, is);
-        if (lineSupportsXi(line, xi, vote_thresh_sq, angle_thresh)) {
-          return true;
-        }
+    for (const auto & [ik, is] : deform_presets) {
+      const XiVector xi = binToXi(ix, iy, io, ik, is);
+      if (lineSupportsXi(line, xi, vote_thresh_sq, angle_thresh)) {
+        return true;
       }
-      return false;
-    };
+    }
+    return false;
+  };
 
   auto merge_accum = [](std::vector<double> a, const std::vector<double> & b) {
-      DenseAccumulator::mergeInPlace(a, b);
-      return a;
-    };
+    DenseAccumulator::mergeInPlace(a, b);
+    return a;
+  };
 
   se2_accum = tbb::parallel_reduce(
     tbb::blocked_range<size_t>(0, lines.size()),
@@ -236,8 +228,8 @@ std::vector<LaneHypothesis> LineLieHoughVoter::vote(
   }
 
   std::sort(se2_peaks.begin(), se2_peaks.end(), [](const SE2Peak & a, const SE2Peak & b) {
-      return a.votes > b.votes;
-    });
+    return a.votes > b.votes;
+  });
 
   std::vector<SE2Peak> selected_se2;
   selected_se2.reserve(static_cast<size_t>(params_.top_k_peaks));
@@ -280,16 +272,15 @@ std::vector<LaneHypothesis> LineLieHoughVoter::vote(
         int best_ik = 0;
         int best_is = 0;
         std::vector<std::pair<XiVector, double>> vote_bins;
-        vote_bins.reserve(
-          static_cast<size_t>(params_.kappa_bins * params_.sigma_bins));
+        vote_bins.reserve(static_cast<size_t>(params_.kappa_bins * params_.sigma_bins));
         for (int ik = 0; ik < params_.kappa_bins; ++ik) {
           for (int is = 0; is < params_.sigma_bins; ++is) {
             XiVector xi = binToXi(se2_peak.ix, se2_peak.iy, se2_peak.io, ik, is);
             double votes = 0.0;
             for (const auto & line : lines) {
-              if (line.mx < vx_lut[static_cast<size_t>(ix_lo)] - vote_thresh ||
-                line.mx > vx_lut[static_cast<size_t>(ix_hi)] + vote_thresh)
-              {
+              if (
+                line.mx < vx_lut[static_cast<size_t>(ix_lo)] - vote_thresh ||
+                line.mx > vx_lut[static_cast<size_t>(ix_hi)] + vote_thresh) {
                 continue;
               }
               if (lineSupportsXi(line, xi, vote_thresh_sq, angle_thresh)) {
@@ -331,9 +322,9 @@ std::vector<LaneHypothesis> LineLieHoughVoter::vote(
             XiVector xi = binToXi(se2_peak.ix, se2_peak.iy, se2_peak.io, ik, is);
             double votes = 0.0;
             for (const auto & line : lines) {
-              if (line.mx < vx_lut[static_cast<size_t>(ix_lo)] - vote_thresh ||
-                line.mx > vx_lut[static_cast<size_t>(ix_hi)] + vote_thresh)
-              {
+              if (
+                line.mx < vx_lut[static_cast<size_t>(ix_lo)] - vote_thresh ||
+                line.mx > vx_lut[static_cast<size_t>(ix_hi)] + vote_thresh) {
                 continue;
               }
               if (lineSupportsXi(line, xi, vote_thresh_sq, angle_thresh)) {
@@ -356,9 +347,9 @@ std::vector<LaneHypothesis> LineLieHoughVoter::vote(
     });
 
   std::vector<LaneHypothesis> final_hyps;
-  std::sort(hypotheses.begin(), hypotheses.end(), [](const LaneHypothesis & a, const LaneHypothesis & b) {
-      return a.score > b.score;
-    });
+  std::sort(
+    hypotheses.begin(), hypotheses.end(),
+    [](const LaneHypothesis & a, const LaneHypothesis & b) { return a.score > b.score; });
   for (const auto & hyp : hypotheses) {
     bool keep = true;
     for (const auto & kept : final_hyps) {

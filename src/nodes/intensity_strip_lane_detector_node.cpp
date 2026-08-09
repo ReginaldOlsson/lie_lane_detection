@@ -26,8 +26,7 @@ namespace
 {
 
 bool homographyFromMsg(
-  const std_msgs::msg::Float64MultiArray & msg,
-  cv::Mat & H_out,
+  const std_msgs::msg::Float64MultiArray & msg, cv::Mat & H_out,
   builtin_interfaces::msg::Time * stamp_out = nullptr)
 {
   if (msg.data.size() != 9 && msg.data.size() != 11) {
@@ -58,7 +57,8 @@ public:
     frame_id_(declare_parameter<std::string>("frame_id", "camera_front"))
   {
     const std::string bev_topic = declare_parameter<std::string>("bev_topic", "/ipm/bev");
-    const std::string image_topic = declare_parameter<std::string>("image_topic", "/camera/image_raw");
+    const std::string image_topic =
+      declare_parameter<std::string>("image_topic", "/camera/image_raw");
     const std::string homography_topic =
       declare_parameter<std::string>("homography_topic", "/ipm/homography");
     const std::string frontal_overlay_topic =
@@ -73,8 +73,8 @@ public:
 
     image_sub_ = image_transport::create_subscription(
       this, image_topic,
-      std::bind(&IntensityStripLaneDetectorNode::onImage, this, std::placeholders::_1),
-      "raw", rmw_qos_profile_sensor_data);
+      std::bind(&IntensityStripLaneDetectorNode::onImage, this, std::placeholders::_1), "raw",
+      rmw_qos_profile_sensor_data);
 
     homography_sub_ = create_subscription<std_msgs::msg::Float64MultiArray>(
       homography_topic, rclcpp::QoS(10),
@@ -82,20 +82,15 @@ public:
 
     bev_sub_ = image_transport::create_subscription(
       this, bev_topic,
-      std::bind(&IntensityStripLaneDetectorNode::onBevImage, this, std::placeholders::_1),
-      "raw", rmw_qos_profile_sensor_data);
+      std::bind(&IntensityStripLaneDetectorNode::onBevImage, this, std::placeholders::_1), "raw",
+      rmw_qos_profile_sensor_data);
 
     RCLCPP_INFO(get_logger(), "intensity_strip_lane_detector_node on %s", bev_topic.c_str());
-    RCLCPP_INFO(
-      get_logger(),
-      "  publish: /lanes/intensity/{overlay,projection,markers,stats}");
+    RCLCPP_INFO(get_logger(), "  publish: /lanes/intensity/{overlay,projection,markers,stats}");
     RCLCPP_INFO(get_logger(), "  frontal overlay: %s", frontal_overlay_topic.c_str());
     RCLCPP_INFO(
-      get_logger(),
-      "  strips: H=%d max_peaks=%d v_half_w=%d",
-      strip_params_.num_horizontal_strips,
-      strip_params_.max_peaks_per_strip,
-      strip_params_.vertical_strip_half_width_px);
+      get_logger(), "  strips: H=%d max_peaks=%d v_half_w=%d", strip_params_.num_horizontal_strips,
+      strip_params_.max_peaks_per_strip, strip_params_.vertical_strip_half_width_px);
   }
 
 private:
@@ -240,18 +235,15 @@ private:
       tryPublishFrontalOverlay();
       if (pending_frontal_.has_value()) {
         RCLCPP_DEBUG(
-          get_logger(),
-          "Waiting for image/homography stamp %d.%u",
-          msg->header.stamp.sec, msg->header.stamp.nanosec);
+          get_logger(), "Waiting for image/homography stamp %d.%u", msg->header.stamp.sec,
+          msg->header.stamp.nanosec);
       }
     }
 
     std::ostringstream stats;
     stats << "mode=intensity_strip"
-          << " H=" << result.horizontal_strip_count
-          << " V=" << result.vertical_strips.size()
-          << " lanes=" << result.lanes.size()
-          << " total_ms=" << total_ms
+          << " H=" << result.horizontal_strip_count << " V=" << result.vertical_strips.size()
+          << " lanes=" << result.lanes.size() << " total_ms=" << total_ms
           << " detect_ms=" << result.elapsed_ms;
 
     std_msgs::msg::String stats_msg;
@@ -259,8 +251,7 @@ private:
     stats_pub_->publish(stats_msg);
 
     RCLCPP_INFO_THROTTLE(
-      get_logger(), *get_clock(), 1000,
-      "INTENSITY | %s", stats_msg.data.c_str());
+      get_logger(), *get_clock(), 1000, "INTENSITY | %s", stats_msg.data.c_str());
   }
 
   PipelineParams detect_params_;

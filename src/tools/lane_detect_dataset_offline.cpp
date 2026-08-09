@@ -7,20 +7,6 @@
 //   lane_detect_dataset_offline --dataset /path/to/boreas-seq [--output DIR]
 //   lane_detect_dataset_offline --images /path/to/camera --calib-dir /path/to/calib
 
-#include <algorithm>
-#include <filesystem>
-#include <fstream>
-#include <iomanip>
-#include <iostream>
-#include <sstream>
-#include <string>
-#include <vector>
-
-#include <opencv2/imgcodecs.hpp>
-#include <opencv2/highgui.hpp>
-#include <opencv2/imgproc.hpp>
-#include <opencv2/videoio.hpp>
-
 #include "lie_lane_detection/pipeline/detection_common.hpp"
 #include "lie_lane_detection/pipeline/lane_detection_runner.hpp"
 #include "lie_lane_detection/preprocessing/auto_frontal_ipm.hpp"
@@ -29,6 +15,20 @@
 #include "lie_lane_detection/preprocessing/road_feature_segmenter.hpp"
 #include "lie_lane_detection/visualization/visualization.hpp"
 #include "offline_display.hpp"
+
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/videoio.hpp>
+
+#include <algorithm>
+#include <filesystem>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
 
 namespace fs = std::filesystem;
 namespace lie = lie_lane_detection;
@@ -86,8 +86,7 @@ std::string laneSummary(const std::vector<lie::LaneHypothesis> & lanes)
 {
   std::ostringstream oss;
   for (const auto & lane : lanes) {
-    oss << "lane" << lane.lane_id
-        << "(vx=" << std::fixed << std::setprecision(1) << lane.xi[0]
+    oss << "lane" << lane.lane_id << "(vx=" << std::fixed << std::setprecision(1) << lane.xi[0]
         << ",inl=" << std::setprecision(2) << lane.inlier_ratio << ") ";
   }
   return oss.str();
@@ -142,21 +141,20 @@ int main(int argc, char ** argv)
     } else if (arg == "--road-mask-model" && i + 1 < argc) {
       road_mask_model = argv[++i];
     } else if (arg == "--help" || arg == "-h") {
-      std::cout <<
-        "Usage: lane_detect_dataset_offline --dataset BOREAS_SEQ | --images CAMERA_DIR\n"
-        "       [--calib-dir DIR] [--output DIR] [--stride N] [--max-frames N]\n"
-        "  --dataset       Boreas root with camera/ (+ calib/ if present)\n"
-        "  --images        Folder of PNG/JPG frames\n"
-        "  --calib-dir     Boreas calib/ (optional; manual IPM trapezoid is default)\n"
-        "  --auto-ipm      Force VP-based IPM instead of Boreas manual trapezoid\n"
-        "  --auto-ground-ipm  Use P+T_camera_lidar ground quad instead of manual src\n"
-        "  --calib-image   Frame for VP calibration when --auto-ipm is used\n"
-        "  --stride        Process every Nth frame (default 30)\n"
-        "  --max-frames    Cap processed frames (default 30)\n"
-        "  --show          cv::imshow per frame (edges/ipm_overlay/frontal_overlay)\n"
-        "  --wait-ms N     waitKey delay per frame (default 1 with --show; 0=step)\n"
-        "  --road-mask-model PATH  ONNX tiny road/lane/snow segmenter for hybrid gate\n"
-        "  --no-video      Skip overlay MP4\n";
+      std::cout << "Usage: lane_detect_dataset_offline --dataset BOREAS_SEQ | --images CAMERA_DIR\n"
+                   "       [--calib-dir DIR] [--output DIR] [--stride N] [--max-frames N]\n"
+                   "  --dataset       Boreas root with camera/ (+ calib/ if present)\n"
+                   "  --images        Folder of PNG/JPG frames\n"
+                   "  --calib-dir     Boreas calib/ (optional; manual IPM trapezoid is default)\n"
+                   "  --auto-ipm      Force VP-based IPM instead of Boreas manual trapezoid\n"
+                   "  --auto-ground-ipm  Use P+T_camera_lidar ground quad instead of manual src\n"
+                   "  --calib-image   Frame for VP calibration when --auto-ipm is used\n"
+                   "  --stride        Process every Nth frame (default 30)\n"
+                   "  --max-frames    Cap processed frames (default 30)\n"
+                   "  --show          cv::imshow per frame (edges/ipm_overlay/frontal_overlay)\n"
+                   "  --wait-ms N     waitKey delay per frame (default 1 with --show; 0=step)\n"
+                   "  --road-mask-model PATH  ONNX tiny road/lane/snow segmenter for hybrid gate\n"
+                   "  --no-video      Skip overlay MP4\n";
       return 0;
     }
   }
@@ -207,11 +205,9 @@ int main(int argc, char ** argv)
   cv::Mat calib_debug;
 
   const bool has_boreas_calib =
-    !calib_dir.empty() && fs::is_directory(calib_dir) &&
-    fs::exists(calib_dir / "P_camera.txt");
+    !calib_dir.empty() && fs::is_directory(calib_dir) && fs::exists(calib_dir / "P_camera.txt");
 
-  const bool use_boreas_manual =
-    !force_auto_ipm && has_boreas_calib && !auto_ground_ipm;
+  const bool use_boreas_manual = !force_auto_ipm && has_boreas_calib && !auto_ground_ipm;
   const bool use_boreas_ground = !force_auto_ipm && has_boreas_calib && auto_ground_ipm;
 
   if (use_boreas_manual) {
@@ -264,11 +260,12 @@ int main(int argc, char ** argv)
       lie::drawIpmSrcRoi(calib_debug, params, cv::Scalar(0, 255, 255), 2);
     }
 
-    std::cout << "Boreas calib IPM from " << calib_dir
-              << " BEV=" << ipm.bevWidthPx() << "x" << ipm.bevHeightPx() << "\n";
+    std::cout << "Boreas calib IPM from " << calib_dir << " BEV=" << ipm.bevWidthPx() << "x"
+              << ipm.bevHeightPx() << "\n";
   } else {
     if (has_boreas_calib && force_auto_ipm) {
-      std::cerr << "Note: --auto-ipm ignores Boreas calib/; omit it to use the manual IPM trapezoid (better on Boreas).\n";
+      std::cerr << "Note: --auto-ipm ignores Boreas calib/; omit it to use the manual IPM "
+                   "trapezoid (better on Boreas).\n";
     }
     lie::VanishingPointTracker vp_tracker;
     const fs::path calib_path = calib_image.empty() ? all_images.front() : fs::path(calib_image);
@@ -316,14 +313,12 @@ int main(int argc, char ** argv)
   calib_report << "bev_size=" << ipm.bevWidthPx() << "x" << ipm.bevHeightPx() << "\n";
   calib_report << "ipm_src_points (image px):";
   for (size_t i = 0; i < params.ipm_src_points.size(); i += 2) {
-    calib_report << " (" << params.ipm_src_points[i] << "," << params.ipm_src_points[i + 1]
-                 << ")";
+    calib_report << " (" << params.ipm_src_points[i] << "," << params.ipm_src_points[i + 1] << ")";
   }
   calib_report << "\n";
   calib_report << "ipm_dst_points (m):";
   for (size_t i = 0; i < params.ipm_dst_points.size(); i += 2) {
-    calib_report << " (" << params.ipm_dst_points[i] << "," << params.ipm_dst_points[i + 1]
-                 << ")";
+    calib_report << " (" << params.ipm_dst_points[i] << "," << params.ipm_dst_points[i + 1] << ")";
   }
   calib_report << "\n";
   calib_report.close();
@@ -335,7 +330,8 @@ int main(int argc, char ** argv)
   int processed = 0;
   double total_detect_ms = 0.0;
 
-  for (size_t idx = 0; idx < all_images.size() && processed < max_frames; idx += static_cast<size_t>(stride)) {
+  for (size_t idx = 0; idx < all_images.size() && processed < max_frames;
+       idx += static_cast<size_t>(stride)) {
     const fs::path & img_path = all_images[idx];
     cv::Mat frame = cv::imread(img_path.string(), cv::IMREAD_COLOR);
     if (frame.empty()) {
@@ -352,8 +348,7 @@ int main(int argc, char ** argv)
     lie::maskBevBottomExclude(bev, params);
 
     const lie::BevDetectionResult det = lie::detectLanesInBev(
-      bev, params, /*configure=*/false,
-      road_segmenter.isReady() ? &road_segmenter : nullptr);
+      bev, params, /*configure=*/false, road_segmenter.isReady() ? &road_segmenter : nullptr);
     cv::Mat overlay = lie::drawOverlay(bev, det.lanes, det.merges);
     cv::Mat frontal_overlay = lie::drawFrontalOverlay(frame, det.lanes, det.merges, H_img2bev);
     lie::drawIpmRoiOnBev(overlay, H_img2bev, params);
@@ -364,40 +359,38 @@ int main(int argc, char ** argv)
     cv::Mat bev_vis = bev.clone();
     lie::drawIpmRoiOnBev(bev_vis, H_img2bev, params);
     cv::imwrite((output_dir / "frames" / (stem + "_bev.png")).string(), bev_vis);
-    const cv::Mat filtered_edges =
-      lie::filterBevEdgeArtifacts(det.edges, bev, params, H_img2bev);
+    const cv::Mat filtered_edges = lie::filterBevEdgeArtifacts(det.edges, bev, params, H_img2bev);
     const cv::Mat edge_vis = lie::offline_display::composeCleanEdgeView(filtered_edges);
     cv::imwrite((output_dir / "frames" / (stem + "_edges.png")).string(), edge_vis);
     if (!det.road_feature_debug.empty()) {
-      cv::imwrite((output_dir / "frames" / (stem + "_road_mask.png")).string(), det.road_feature_debug);
+      cv::imwrite(
+        (output_dir / "frames" / (stem + "_road_mask.png")).string(), det.road_feature_debug);
     }
     cv::imwrite((output_dir / "frames" / (stem + "_overlay.png")).string(), overlay);
-    cv::imwrite((output_dir / "frames" / (stem + "_frontal_overlay.png")).string(), frontal_overlay);
+    cv::imwrite(
+      (output_dir / "frames" / (stem + "_frontal_overlay.png")).string(), frontal_overlay);
 
     if (save_video) {
       if (!video.isOpened()) {
         const int fourcc = cv::VideoWriter::fourcc('m', 'p', '4', 'v');
         video.open(
-          (output_dir / "overlay.mp4").string(), fourcc, 5.0,
-          cv::Size(overlay.cols, overlay.rows));
+          (output_dir / "overlay.mp4").string(), fourcc, 5.0, cv::Size(overlay.cols, overlay.rows));
       }
       if (video.isOpened()) {
         video.write(overlay);
       }
     }
 
-    summary << stem << "," << det.lanes.size() << ","
-            << det.edge_ms << "," << det.vote_ms << "," << det.fit_ms << ","
-            << det.elapsed_ms << "," << det.edge_point_count << ","
+    summary << stem << "," << det.lanes.size() << "," << det.edge_ms << "," << det.vote_ms << ","
+            << det.fit_ms << "," << det.elapsed_ms << "," << det.edge_point_count << ","
             << "\"" << laneSummary(det.lanes) << "\"\n";
 
     total_detect_ms += det.elapsed_ms;
     ++processed;
 
     std::cout << "[" << processed << "/" << max_frames << "] " << stem
-              << " lanes=" << det.lanes.size()
-              << " ms=" << std::fixed << std::setprecision(1) << det.elapsed_ms
-              << " " << laneSummary(det.lanes) << "\n";
+              << " lanes=" << det.lanes.size() << " ms=" << std::fixed << std::setprecision(1)
+              << det.elapsed_ms << " " << laneSummary(det.lanes) << "\n";
 
     if (show_windows) {
       lie::offline_display::show("edges", edge_vis);

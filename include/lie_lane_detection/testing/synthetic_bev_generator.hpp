@@ -1,17 +1,16 @@
 #pragma once
 
-#include <string>
-#include <vector>
+#include "lie_lane_detection/core/types.hpp"
 
 #include <opencv2/core.hpp>
 
-#include "lie_lane_detection/core/types.hpp"
+#include <string>
+#include <vector>
 
 namespace lie_lane_detection
 {
 
-enum class SyntheticScenario
-{
+enum class SyntheticScenario {
   ParallelStraight3,
   CurvedHighway,
   YMerge,
@@ -62,15 +61,9 @@ public:
 private:
   cv::Mat blankCanvas(const SyntheticSceneSpec & spec) const;
 
-  void drawLane(
-    cv::Mat & canvas,
-    const XiVector & xi,
-    const SyntheticSceneSpec & spec) const;
+  void drawLane(cv::Mat & canvas, const XiVector & xi, const SyntheticSceneSpec & spec) const;
 
-  void drawDashedLane(
-    cv::Mat & canvas,
-    const XiVector & xi,
-    const SyntheticSceneSpec & spec) const;
+  void drawDashedLane(cv::Mat & canvas, const XiVector & xi, const SyntheticSceneSpec & spec) const;
 
   void applyIpmMask(cv::Mat & canvas) const;
 

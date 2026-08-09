@@ -1,9 +1,9 @@
 #pragma once
 
-#include <vector>
-
-#include "lie_lane_detection/geometry/template_curve.hpp"
 #include "lie_lane_detection/core/types.hpp"
+#include "lie_lane_detection/geometry/template_curve.hpp"
+
+#include <vector>
 
 namespace lie_lane_detection
 {
@@ -14,11 +14,10 @@ class LineLieHoughVoter
 public:
   LineLieHoughVoter(const PipelineParams & params, TemplateCurve * template_curve);
 
-  void setTemplateCurve(TemplateCurve * template_curve) {template_curve_ = template_curve;}
+  void setTemplateCurve(TemplateCurve * template_curve) { template_curve_ = template_curve; }
 
   std::vector<LaneHypothesis> vote(
-    const std::vector<LineSegment> & lines,
-    cv::Mat * hough_debug_slice = nullptr);
+    const std::vector<LineSegment> & lines, cv::Mat * hough_debug_slice = nullptr);
 
 private:
   struct SE2Peak
@@ -32,15 +31,13 @@ private:
 
   XiVector binToXi(int ix, int iy, int io, int ik, int is) const;
   void binIndicesToXiComponents(
-    int ix, int iy, int io, int ik, int is,
-    double & vx, double & vy, double & omega, double & kappa, double & sigma) const;
+    int ix, int iy, int io, int ik, int is, double & vx, double & vy, double & omega,
+    double & kappa, double & sigma) const;
 
   bool isPeakSeparated(const XiVector & a, const XiVector & b) const;
 
   bool lineSupportsXi(
-    const LineSegment & line,
-    const XiVector & xi,
-    double vote_thresh_sq,
+    const LineSegment & line, const XiVector & xi, double vote_thresh_sq,
     double angle_thresh) const;
 
   PipelineParams params_;

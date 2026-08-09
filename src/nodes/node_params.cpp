@@ -48,8 +48,7 @@ PipelineParams loadDetectionParams(rclcpp::Node & node)
   p.use_iterative_peeling = node.declare_parameter<bool>("use_iterative_peeling", true);
   p.vote_threshold_px = node.declare_parameter<double>("vote_threshold_px", 8.0);
   p.inlier_threshold_px = node.declare_parameter<double>("inlier_threshold_px", 10.0);
-  p.use_magnitude_weighted_fit =
-    node.declare_parameter<bool>("use_magnitude_weighted_fit", true);
+  p.use_magnitude_weighted_fit = node.declare_parameter<bool>("use_magnitude_weighted_fit", true);
   p.use_soft_voting = node.declare_parameter<bool>("use_soft_voting", p.use_soft_voting);
   p.soft_vote_sigma_px = node.declare_parameter<double>("soft_vote_sigma_px", p.soft_vote_sigma_px);
   p.use_output_temporal_smoothing =
@@ -74,12 +73,9 @@ PipelineParams loadDetectionParams(rclcpp::Node & node)
     node.declare_parameter<bool>("use_longitudinal_line_filter", true);
   p.longitudinal_max_deviation_rad =
     node.declare_parameter<double>("longitudinal_max_deviation_rad", 0.52);
-  p.use_line_ransac_init_gate =
-    node.declare_parameter<bool>("use_line_ransac_init_gate", true);
-  p.ceres_hard_gate_dist_px =
-    node.declare_parameter<double>("ceres_hard_gate_dist_px", 12.0);
-  p.ceres_hard_gate_angle_rad =
-    node.declare_parameter<double>("ceres_hard_gate_angle_rad", 0.35);
+  p.use_line_ransac_init_gate = node.declare_parameter<bool>("use_line_ransac_init_gate", true);
+  p.ceres_hard_gate_dist_px = node.declare_parameter<double>("ceres_hard_gate_dist_px", 12.0);
+  p.ceres_hard_gate_angle_rad = node.declare_parameter<double>("ceres_hard_gate_angle_rad", 0.35);
   p.ceres_heading_weight = node.declare_parameter<double>("ceres_heading_weight", 1.0);
   p.ceres_reject_corridor_center =
     node.declare_parameter<bool>("ceres_reject_corridor_center", false);
@@ -88,8 +84,7 @@ PipelineParams loadDetectionParams(rclcpp::Node & node)
   p.line_hough_threshold = node.declare_parameter<int>("line_hough_threshold", 25);
   p.line_min_length_px = node.declare_parameter<double>("line_min_length_px", 18.0);
   p.line_max_gap_px = node.declare_parameter<double>("line_max_gap_px", 12.0);
-  p.use_road_manifold_joint =
-    node.declare_parameter<bool>("use_road_manifold_joint", true);
+  p.use_road_manifold_joint = node.declare_parameter<bool>("use_road_manifold_joint", true);
   return p;
 }
 

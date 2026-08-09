@@ -1,10 +1,10 @@
+#include "lie_lane_detection/geometry/template_curve.hpp"
+
 #include <gtest/gtest.h>
 
 #include <cmath>
 #include <limits>
 #include <random>
-
-#include "lie_lane_detection/geometry/template_curve.hpp"
 
 TEST(TemplateCurveTest, StraightLineDistance)
 {
@@ -42,8 +42,8 @@ TEST(TemplateCurveTest, AnalyticMatchesDenseBruteForce)
   lie_lane_detection::TemplateCurve curve(params);
   curve.setBevExtents(0.0, 200.0, -100.0, 100.0);
 
-  auto denseDistance = [&](const lie_lane_detection::XiVector & xi,
-    const lie_lane_detection::Vec2 & p) {
+  auto denseDistance =
+    [&](const lie_lane_detection::XiVector & xi, const lie_lane_detection::Vec2 & p) {
       double best = std::numeric_limits<double>::max();
       constexpr int kSteps = 4000;
       for (int i = 0; i <= kSteps; ++i) {

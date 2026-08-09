@@ -1,7 +1,7 @@
-#include <gtest/gtest.h>
-
 #include "lie_lane_detection/pipeline/lane_detection_runner.hpp"
 #include "lie_lane_detection/preprocessing/auto_frontal_ipm.hpp"
+
+#include <gtest/gtest.h>
 
 namespace lie_lane_detection
 {

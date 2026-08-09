@@ -3,7 +3,7 @@
 This note connects the **Lie-theoretic lane model** used in `lie_lane_detection` to broader mathematics, including the lecture:
 
 **[Graded Lie algebras and families of algebraic curves](https://www.youtube.com/watch?v=TlAnOMjybJg)** — Beth Romano (CIRM, 2023)  
-*(timestamp ~11:00 / `t=654s`: SL₃ grading → PGL₂ acting on ℙ⁴, elliptic curves from Thorne’s construction)*
+_(timestamp ~11:00 / `t=654s`: SL₃ grading → PGL₂ acting on ℙ⁴, elliptic curves from Thorne’s construction)_
 
 ---
 
@@ -17,14 +17,14 @@ Romano’s talk is **pure arithmetic geometry**, not autonomous driving. The goa
 
 Our package solves a **different problem** (2D lane boundaries in BEV), but several structural ideas rhyme with Romano’s pipeline.
 
-| Romano (arithmetic geometry) | `lie_lane_detection` (BEV lanes) |
-|------------------------------|----------------------------------|
-| Graded Lie algebra `⊕ H_j` | Split parameters `xi = (SE₂ part, κ, σ)` |
-| Representation `G ↷ H₁` | Hough accumulator over `(vx, vy, ω)` then `(κ, σ)` |
-| Orbit counting (Bhargava) | **Vote counting** in parameter space |
-| Family of curves as fibers | **One curve per hypothesis** `γ(t; xi)` |
-| Stable grading / nice orbits | NMS + `min_inlier_ratio` + lane separation |
-| `exp` / `log` on Lie groups | Sophus `SE2::exp` / `.log()` in RANSAC GN |
+| Romano (arithmetic geometry)      | `lie_lane_detection` (BEV lanes)                          |
+| --------------------------------- | --------------------------------------------------------- |
+| Graded Lie algebra `⊕ H_j`        | Split parameters `xi = (SE₂ part, κ, σ)`                  |
+| Representation `G ↷ H₁`           | Hough accumulator over `(vx, vy, ω)` then `(κ, σ)`        |
+| Orbit counting (Bhargava)         | **Vote counting** in parameter space                      |
+| Family of curves as fibers        | **One curve per hypothesis** `γ(t; xi)`                   |
+| Stable grading / nice orbits      | NMS + `min_inlier_ratio` + lane separation                |
+| `exp` / `log` on Lie groups       | Sophus `SE2::exp` / `.log()` in RANSAC GN                 |
 | Restrict map to graded piece `H₁` | Stage A votes with deformation presets on `H₁`-like slice |
 
 The video is useful as **conceptual background** for why we parameterize curves through a **Lie group action** and refine in **tangent space**, not as a drop-in algorithm for IPM lane detection.
@@ -81,14 +81,14 @@ At [t ≈ 654 s](https://www.youtube.com/watch?v=TlAnOMjybJg&t=654s), Romano wor
 
 ### Analogy for lane detection
 
-| Thorne / Romano | Our pipeline |
-|-----------------|--------------|
-| Start with large Lie algebra `sl_n` | Full 5D `xi` space |
-| Grade into eigenspaces `H_j` | **Stage A:** fix \((\kappa,\sigma) \approx 0\), search SE(2) |
-| Restrict quotient map to `H₁` | **Stage B:** fix SE(2) peak, search \((\kappa,\sigma)\) |
-| Fibers = algebraic curves | Each `xi` defines one lane polyline |
-| Orbit count in representation | Hough vote sum per bin |
-| “Stable” grading → well-behaved orbits | Peaks separated by `hypothesisDistance` + NMS |
+| Thorne / Romano                        | Our pipeline                                                 |
+| -------------------------------------- | ------------------------------------------------------------ |
+| Start with large Lie algebra `sl_n`    | Full 5D `xi` space                                           |
+| Grade into eigenspaces `H_j`           | **Stage A:** fix \((\kappa,\sigma) \approx 0\), search SE(2) |
+| Restrict quotient map to `H₁`          | **Stage B:** fix SE(2) peak, search \((\kappa,\sigma)\)      |
+| Fibers = algebraic curves              | Each `xi` defines one lane polyline                          |
+| Orbit count in representation          | Hough vote sum per bin                                       |
+| “Stable” grading → well-behaved orbits | Peaks separated by `hypothesisDistance` + NMS                |
 
 Our **multi-deformation Stage-A presets** (straight, ±κ, ±σ) play a role similar to **not restricting to κ = σ = 0 only** when the true curve lives in a larger graded piece — this was the bug we fixed when curved lanes under-detected.
 
@@ -111,7 +111,7 @@ g ← exp(δ_SE2) · g
 
 This matches the standard recipe from Lie-group optimization (see also MERL TR2008-031 on learning on Lie groups for invariant detection).
 
-**Not yet implemented:** a true product-manifold metric treating \((\kappa,\sigma)\) as a separate chart with its own connection, or **parallel transport** of tangent updates between peel iterations (Romano emphasizes parallel transport on SPD manifolds in *different* work — ReManNet — but the idea transfers conceptually).
+**Not yet implemented:** a true product-manifold metric treating \((\kappa,\sigma)\) as a separate chart with its own connection, or **parallel transport** of tangent updates between peel iterations (Romano emphasizes parallel transport on SPD manifolds in _different_ work — ReManNet — but the idea transfers conceptually).
 
 ---
 
@@ -137,7 +137,7 @@ Practical translation for Hough:
 - Require peak **contrast** vs. neighbors (not just max vote count)
 - Reject peaks whose supporting edges have **high normal variance** (unstable symmetry)
 
-*Benefit:* fewer spurious lanes on noisy real IPM (TuSimple runs).
+_Benefit:_ fewer spurious lanes on noisy real IPM (TuSimple runs).
 
 ### 3. Transverse / tubular distance (high value for curves)
 
@@ -146,7 +146,7 @@ Slodowy slices are **transverse** to orbits. For lanes:
 - Inlier cost = distance to \(\gamma\) measured **normal to the curve**, not just Euclidean point-to-polyline
 - For near-vertical BEV lanes, normal ≈ horizontal; for large \(|\omega|\), use Jacobian of \(\gamma(t;\xi)\)
 
-*Benefit:* better **ω recovery** on `02_curved_highway` (current gap vs. GT ω = 0.12).
+_Benefit:_ better **ω recovery** on `02_curved_highway` (current gap vs. GT ω = 0.12).
 
 ### 4. Orbit-centric RANSAC scoring (medium)
 
@@ -155,13 +155,13 @@ Bhargava counts **orbits** in a representation, not arbitrary tuples.
 - Score a hypothesis by **unique arc length covered** on the template, not raw edge count
 - Weight votes by edge magnitude × **alignment with curve tangent**
 
-*Benefit:* dashed lanes and partial occlusion (`06`, `09`).
+_Benefit:_ dashed lanes and partial occlusion (`06`, `09`).
 
 ### 5. Lie logarithm for bounded κ, σ (low)
 
 Map \(\kappa,\sigma\) through a bounded chart (e.g. \(\atanh\) scaled to `[kappa_min, kappa_max]`) so GN steps respect limits without hard `clamp`.
 
-*Benefit:* smoother convergence on `08_split_diverge` (large |σ|).
+_Benefit:_ smoother convergence on `08_split_diverge` (large |σ|).
 
 ### 6. 3D / metric lifting (future, ReManNet-adjacent)
 
@@ -180,12 +180,12 @@ This is **iteration 2+** scope, not current package.
 
 After `generate_test_images --detect`, see `curve_eval.txt` per scene:
 
-| Scene | Geometry tested | Key parameters |
-|-------|-----------------|----------------|
-| `02_curved_highway` | Constant κ, ω | κ, ω |
-| `03_y_merge` | Opposing σ | σ |
-| `08_split_diverge` | Opposing σ | σ |
-| `09_combined_challenge` | κ + ω + occlusion | κ, ω |
+| Scene                   | Geometry tested   | Key parameters |
+| ----------------------- | ----------------- | -------------- |
+| `02_curved_highway`     | Constant κ, ω     | κ, ω           |
+| `03_y_merge`            | Opposing σ        | σ              |
+| `08_split_diverge`      | Opposing σ        | σ              |
+| `09_combined_challenge` | κ + ω + occlusion | κ, ω           |
 
 **Current weak point:** ω on `02` (heading / tilt) — aligns with needing **transverse distance** and finer ω bins in Stage B, not more κ bins.
 
@@ -195,14 +195,14 @@ A complementary approach — **classical line Hough first, then Lie-Hough to gro
 
 ## Suggested reading (lane-relevant Lie theory)
 
-| Resource | Relevance |
-|----------|-----------|
-| [Romano — Graded Lie algebras…](https://www.youtube.com/watch?v=TlAnOMjybJg) | Graded search, orbits ↔ curve families (conceptual) |
-| [Symmetry detection via Lie-algebra voting](https://github.com/FlyingGiraffe/symmetry_detection) | Closest paper analog to Lie-Hough |
-| [MERL — Learning on Lie Groups](https://www.merl.com/publications/docs/TR2008-031.pdf) | `exp`/`log` detection & tracking |
-| [Sophus SE(2) docs](https://github.com/strasdat/Sophus) | Implementation of our SE(2) block |
-| [ReManNet (CVPR 2026)](https://arxiv.org/abs/2603.19776) | SPD manifold + log map for **3D** lanes (different group, same “work in Lie algebra” principle) |
-| [LINE_TO_CURVE_HOUGH.md](LINE_TO_CURVE_HOUGH.md) | Line Hough → Lie-curve grouping (design note) |
+| Resource                                                                                         | Relevance                                                                                       |
+| ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| [Romano — Graded Lie algebras…](https://www.youtube.com/watch?v=TlAnOMjybJg)                     | Graded search, orbits ↔ curve families (conceptual)                                             |
+| [Symmetry detection via Lie-algebra voting](https://github.com/FlyingGiraffe/symmetry_detection) | Closest paper analog to Lie-Hough                                                               |
+| [MERL — Learning on Lie Groups](https://www.merl.com/publications/docs/TR2008-031.pdf)           | `exp`/`log` detection & tracking                                                                |
+| [Sophus SE(2) docs](https://github.com/strasdat/Sophus)                                          | Implementation of our SE(2) block                                                               |
+| [ReManNet (CVPR 2026)](https://arxiv.org/abs/2603.19776)                                         | SPD manifold + log map for **3D** lanes (different group, same “work in Lie algebra” principle) |
+| [LINE_TO_CURVE_HOUGH.md](LINE_TO_CURVE_HOUGH.md)                                                 | Line Hough → Lie-curve grouping (design note)                                                   |
 
 ---
 

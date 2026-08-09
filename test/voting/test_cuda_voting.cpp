@@ -1,3 +1,7 @@
+#include "lie_lane_detection/geometry/template_curve.hpp"
+#include "lie_lane_detection/testing/test_helpers.hpp"
+#include "lie_lane_detection/voting/cuda_voting.hpp"
+
 #include <gtest/gtest.h>
 
 #include <algorithm>
@@ -5,10 +9,6 @@
 #include <limits>
 #include <utility>
 #include <vector>
-
-#include "lie_lane_detection/geometry/template_curve.hpp"
-#include "lie_lane_detection/testing/test_helpers.hpp"
-#include "lie_lane_detection/voting/cuda_voting.hpp"
 
 namespace lldc = lie_lane_detection;
 
@@ -24,12 +24,9 @@ inline int flatBinIndex(int ix, int iy, int io, int vx_bins, int vy_bins)
 // authoritative TemplateCurve geometry in double precision. The GPU kernel must
 // agree with this within float tolerance.
 std::vector<double> cpuStageA(
-  const lldc::PipelineParams & params,
-  const lldc::TemplateCurve & curve,
-  const std::vector<lldc::EdgePoint> & edges,
-  const std::vector<Sophus::SE2d> & se2_inv_lut,
-  const std::vector<double> & vx_lut,
-  const std::vector<std::pair<double, double>> & preset_ks)
+  const lldc::PipelineParams & params, const lldc::TemplateCurve & curve,
+  const std::vector<lldc::EdgePoint> & edges, const std::vector<Sophus::SE2d> & se2_inv_lut,
+  const std::vector<double> & vx_lut, const std::vector<std::pair<double, double>> & preset_ks)
 {
   const int vx_bins = params.se2_vx_bins;
   const int vy_bins = params.se2_vy_bins;
@@ -110,18 +107,20 @@ TEST(CudaVotingTest, StageAMatchesCpuReference)
   const int is_hi = std::max(0, params.sigma_bins - 1);
 
   auto lerp = [](int i, int n, double vmin, double vmax) {
-      if (n <= 1) {return vmin;}
-      return vmin + (vmax - vmin) * static_cast<double>(i) / static_cast<double>(n - 1);
-    };
+    if (n <= 1) {
+      return vmin;
+    }
+    return vmin + (vmax - vmin) * static_cast<double>(i) / static_cast<double>(n - 1);
+  };
   auto binToXi = [&](int ix, int iy, int io, int ik, int is) {
-      lldc::XiVector xi;
-      xi[0] = lerp(ix, vx_bins, params.se2_vx_min, params.se2_vx_max);
-      xi[1] = lerp(iy, vy_bins, params.se2_vy_min, params.se2_vy_max);
-      xi[2] = lerp(io, omega_bins, params.se2_omega_min, params.se2_omega_max);
-      xi[3] = lerp(ik, params.kappa_bins, params.kappa_min, params.kappa_max);
-      xi[4] = lerp(is, params.sigma_bins, params.sigma_min, params.sigma_max);
-      return xi;
-    };
+    lldc::XiVector xi;
+    xi[0] = lerp(ix, vx_bins, params.se2_vx_min, params.se2_vx_max);
+    xi[1] = lerp(iy, vy_bins, params.se2_vy_min, params.se2_vy_max);
+    xi[2] = lerp(io, omega_bins, params.se2_omega_min, params.se2_omega_max);
+    xi[3] = lerp(ik, params.kappa_bins, params.kappa_min, params.kappa_max);
+    xi[4] = lerp(is, params.sigma_bins, params.sigma_min, params.sigma_max);
+    return xi;
+  };
 
   std::vector<Sophus::SE2d> se2_inv_lut(static_cast<size_t>(se2_cells));
   std::vector<double> vx_lut(static_cast<size_t>(vx_bins));
@@ -181,7 +180,8 @@ TEST(CudaVotingTest, StageAMatchesCpuReference)
   cfg.vy_bins = vy_bins;
   cfg.omega_bins = omega_bins;
   cfg.num_presets = static_cast<int>(preset_ks.size());
-  cfg.ix_radius = std::max(1, static_cast<int>(std::ceil(params.vote_threshold_px / bin_width)) + 1);
+  cfg.ix_radius =
+    std::max(1, static_cast<int>(std::ceil(params.vote_threshold_px / bin_width)) + 1);
   cfg.vx_min = static_cast<float>(params.se2_vx_min);
   cfg.vx_max = static_cast<float>(params.se2_vx_max);
   cfg.y_min = static_cast<float>(curve.localFrameYMin());
@@ -198,7 +198,8 @@ TEST(CudaVotingTest, StageAMatchesCpuReference)
     cpu_sum += cpu_accum[static_cast<size_t>(i)];
     gpu_sum += gpu_accum[static_cast<size_t>(i)];
     max_abs_diff = std::max(
-      max_abs_diff, std::abs(cpu_accum[static_cast<size_t>(i)] - gpu_accum[static_cast<size_t>(i)]));
+      max_abs_diff,
+      std::abs(cpu_accum[static_cast<size_t>(i)] - gpu_accum[static_cast<size_t>(i)]));
     if (cpu_accum[static_cast<size_t>(i)] > cpu_accum[static_cast<size_t>(cpu_argmax)]) {
       cpu_argmax = i;
     }

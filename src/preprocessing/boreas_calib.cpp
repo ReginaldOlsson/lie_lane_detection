@@ -1,15 +1,15 @@
 #include "lie_lane_detection/preprocessing/boreas_calib.hpp"
 
+#include "lie_lane_detection/pipeline/lane_detection_runner.hpp"
+
+#include <opencv2/imgproc.hpp>
+
 #include <array>
 #include <cmath>
 #include <fstream>
 #include <limits>
 #include <regex>
 #include <sstream>
-
-#include <opencv2/imgproc.hpp>
-
-#include "lie_lane_detection/pipeline/lane_detection_runner.hpp"
 
 namespace lie_lane_detection
 {
@@ -27,10 +27,7 @@ void boreasDefaultSrcRectangle(const BoreasCalib & calib, PipelineParams & param
   const double v_top = kTopV;
   const double v_bottom = static_cast<double>(calib.image_height);
   params.ipm_src_points = {
-    u_min, v_bottom,
-    u_max, v_bottom,
-    u_max, v_top,
-    u_min, v_top,
+    u_min, v_bottom, u_max, v_bottom, u_max, v_top, u_min, v_top,
   };
 }
 
@@ -103,9 +100,7 @@ bool findLateralRangeAtX(
     if (uv[2] <= 0.0) {
       continue;
     }
-    if (uv[0] < 0.0 || uv[0] >= calib.image_width || uv[1] < 0.0 ||
-      uv[1] >= calib.image_height)
-    {
+    if (uv[0] < 0.0 || uv[0] >= calib.image_width || uv[1] < 0.0 || uv[1] >= calib.image_height) {
       continue;
     }
     any = true;
@@ -151,12 +146,8 @@ bool findFarForwardX(
 }
 
 bool buildVisibleGroundQuad(
-  const BoreasCalib & calib,
-  double length_m,
-  GroundCorner & bl,
-  GroundCorner & br,
-  GroundCorner & tr,
-  GroundCorner & tl)
+  const BoreasCalib & calib, double length_m, GroundCorner & bl, GroundCorner & br,
+  GroundCorner & tr, GroundCorner & tl)
 {
   double x_near = 0.0;
   if (!findNearForwardX(calib, x_near)) {
@@ -171,9 +162,9 @@ bool buildVisibleGroundQuad(
   double yr_near = 0.0;
   double yl_far = 0.0;
   double yr_far = 0.0;
-  if (!findLateralRangeAtX(calib, x_near, yl_near, yr_near) ||
-    !findLateralRangeAtX(calib, x_far, yl_far, yr_far))
-  {
+  if (
+    !findLateralRangeAtX(calib, x_near, yl_near, yr_near) ||
+    !findLateralRangeAtX(calib, x_far, yl_far, yr_far)) {
     return false;
   }
 
@@ -219,11 +210,7 @@ bool boreasLidarGroundToImage(
 }
 
 bool boreasImageToLidarGround(
-  const BoreasCalib & calib,
-  double u,
-  double v,
-  double & x_fwd_m,
-  double & y_left_m)
+  const BoreasCalib & calib, double u, double v, double & x_fwd_m, double & y_left_m)
 {
   // Solve P * T * [x, y, 0, 1]^T = λ [u, v, 1]^T for ground (x, y).
   const cv::Mat M = calib.P * calib.T_camera_lidar;
@@ -285,11 +272,7 @@ double cameraXZPlaneYFromReference(
 }
 
 bool boreasImageToCameraXZPlane(
-  const BoreasCalib & calib,
-  double u,
-  double v,
-  double y_plane_m,
-  double & x_cam_m,
+  const BoreasCalib & calib, double u, double v, double y_plane_m, double & x_cam_m,
   double & z_cam_m)
 {
   cv::Vec3d d;
@@ -311,9 +294,7 @@ bool boreasImageToCameraXZPlane(
 }  // namespace
 
 bool configureBoreasGroundIpm(
-  const BoreasCalib & calib,
-  PipelineParams & params,
-  cv::Mat & H_img2bev_out,
+  const BoreasCalib & calib, PipelineParams & params, cv::Mat & H_img2bev_out,
   IPMTransformer * ipm_out)
 {
   updateIpmDstFromBevExtent(params);
@@ -333,8 +314,8 @@ bool configureBoreasGroundIpm(
   const std::array<std::pair<double, double>, 4> dst_metric = {{
     {-half_w, 0.0},
     {half_w, 0.0},
-    {half_w, params.bev_length_m/2},
-    {-half_w, params.bev_length_m/2},
+    {half_w, params.bev_length_m / 2},
+    {-half_w, params.bev_length_m / 2},
   }};
 
   std::vector<cv::Point2f> src(4);
@@ -361,9 +342,9 @@ bool configureBoreasGroundIpm(
 
   // Sanity: all corners must land inside the rectified image.
   for (const auto & p : src) {
-    if (p.x < 0.0f || p.y < 0.0f || p.x > static_cast<float>(calib.image_width) ||
-      p.y > static_cast<float>(calib.image_height))
-    {
+    if (
+      p.x < 0.0f || p.y < 0.0f || p.x > static_cast<float>(calib.image_width) ||
+      p.y > static_cast<float>(calib.image_height)) {
       return false;
     }
   }
@@ -381,9 +362,7 @@ bool configureBoreasGroundIpm(
 }
 
 bool configureBoreasManualIpmSrc(
-  const BoreasCalib & calib,
-  PipelineParams & params,
-  cv::Mat & H_img2bev_out,
+  const BoreasCalib & calib, PipelineParams & params, cv::Mat & H_img2bev_out,
   IPMTransformer * ipm_out)
 {
   // Axis-aligned src rectangle; dst is a ground-plane trapezoid from calibration geometry.

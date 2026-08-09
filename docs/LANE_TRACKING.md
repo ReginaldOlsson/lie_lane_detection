@@ -22,13 +22,13 @@ flowchart TB
   M -.->|narrow bins / ROI edges| S
 ```
 
-| Layer | Rate | Role |
-|-------|------|------|
-| **Track predict** | 30 Hz | Constant-velocity (CV) on `xi`; grow uncertainty with forward distance |
-| **Local search** | 30 Hz | Find edge support only inside predicted corridor |
-| **Track update** | 30 Hz | Cheap Kalman / diagonal fusion from stripe hits |
-| **Main detector** | 2–10 Hz | Full hypothesis generation; corrects drift, adds/drops lanes |
-| **Association + fusion** | on main output | Match detections to tracks; Bayesian merge |
+| Layer                    | Rate           | Role                                                                   |
+| ------------------------ | -------------- | ---------------------------------------------------------------------- |
+| **Track predict**        | 30 Hz          | Constant-velocity (CV) on `xi`; grow uncertainty with forward distance |
+| **Local search**         | 30 Hz          | Find edge support only inside predicted corridor                       |
+| **Track update**         | 30 Hz          | Cheap Kalman / diagonal fusion from stripe hits                        |
+| **Main detector**        | 2–10 Hz        | Full hypothesis generation; corrects drift, adds/drops lanes           |
+| **Association + fusion** | on main output | Match detections to tracks; Bayesian merge                             |
 
 ---
 
@@ -70,6 +70,7 @@ search_half_width(y) = k * sigma_lat(y)            // k ≈ 2..3
 ```
 
 Interpretation:
+
 - **Near field** (large `y` in image, close to ego): small lateral std → tight search
 - **Far field**: wide std → tolerate VP/IPM error and curvature error
 
@@ -81,6 +82,7 @@ x in [x_pred(y) - search_half_width(y), x_pred(y) + search_half_width(y)]
 ```
 
 Use this to:
+
 1. **Filter edge points** before voting/RANSAC (`collectCandidates` only keeps edges in corridor)
 2. **Restrict Lie-Hough bins**: `se2_vx_min/max` ± window per track instead of full image width
 3. **Weight stripe search** with Gaussian likelihood `exp(-0.5 * (x - x_pred)^2 / sigma_lat^2)`
@@ -105,13 +107,13 @@ Cost: O(tracks × rows × window_width) — typically **&lt; 20 ms** on 640×BEV
 
 **Alternative fast methods (pick by trade-off):**
 
-| Method | Speed | Robustness | Notes |
-|--------|-------|------------|-------|
-| **Stripe search** | ★★★ | ★★☆ | Best v1; uses existing edges |
-| **Narrow-bin Lie-Hough** | ★★☆ | ★★★ | Reuse `LieHoughVoter` with ROI params per track |
-| **Narrow RANSAC only** | ★★☆ | ★★★ | Seed from predict; `ransac_iterations` = 20 |
-| **LK on polyline** | ★★★ | ★☆☆ | Fragile on dashed/occluded lanes |
-| **1D Kalman per row** | ★★★ | ★★☆ | Good for parallel lanes; fuse rows → `xi` |
+| Method                   | Speed | Robustness | Notes                                           |
+| ------------------------ | ----- | ---------- | ----------------------------------------------- |
+| **Stripe search**        | ★★★   | ★★☆        | Best v1; uses existing edges                    |
+| **Narrow-bin Lie-Hough** | ★★☆   | ★★★        | Reuse `LieHoughVoter` with ROI params per track |
+| **Narrow RANSAC only**   | ★★☆   | ★★★        | Seed from predict; `ransac_iterations` = 20     |
+| **LK on polyline**       | ★★★   | ★☆☆        | Fragile on dashed/occluded lanes                |
+| **1D Kalman per row**    | ★★★   | ★★☆        | Good for parallel lanes; fuse rows → `xi`       |
 
 ---
 
@@ -119,7 +121,7 @@ Cost: O(tracks × rows × window_width) — typically **&lt; 20 ms** on 640×BEV
 
 Treat main pipeline output as a **measurement**, not a replacement.
 
-### When main runs (every `N` frames or if `trace(P) > threshold`):
+### When main runs (every `N` frames or if `trace(P) > threshold`)
 
 1. **Predict** all tracks to current time
 2. **Associate** detections `z_j` to tracks `i` via cost matrix:
@@ -132,7 +134,7 @@ cost(i,j) = hypothesisDistance(xi_pred_i, xi_det_j)
 
 Hungarian or greedy nearest-neighbor (≤5 lanes → greedy is fine).
 
-3. **Update** matched tracks (Kalman / information filter):
+1. **Update** matched tracks (Kalman / information filter):
 
 ```text
 // Diagonal v1 (fast):
@@ -149,10 +151,10 @@ R_det = R0 / max(inlier_ratio, 0.1) / max(score_norm, 0.1)
 
 High inlier ratio → trust main detector more → tracker snaps to it.
 
-4. **Unmatched detections** → spawn new tracks (after `min_hits` confirmation)
-5. **Unmatched tracks** → increment `misses`; drop if `misses > M_max`
+1. **Unmatched detections** → spawn new tracks (after `min_hits` confirmation)
+2. **Unmatched tracks** → increment `misses`; drop if `misses > M_max`
 
-### Between main runs:
+### Between main runs
 
 Tracker uses **stripe measurements** with larger `R_stripe` (less trust than main). Main detector **corrects** accumulated drift when it fires.
 
@@ -180,14 +182,14 @@ Optional: predict on SE(2) part via `exp(xi_se2 + xi_dot_se2 * dt)` for better r
 
 ## Plug-in points in this repo
 
-| Hook | File | Change |
-|------|------|--------|
-| Track bank + predict/update | `tracking/lane_tracker.hpp` (new) | Core tracker API |
-| Corridor edge filter | `fitting/manifold_ransac.cpp` | `collectCandidates` accepts optional `TrackCorridor` |
-| Narrow Hough | `lane_detection_runner.cpp` | Per-track `configureParamsForBev` window around `xi_pred.vx` |
-| Fusion after detect | `pipeline/lane_detection_pipeline.cpp` | `tracker.fuse(main_lanes)` |
-| ROS node | `lane_detector_node.cpp` | Timer: fast track @ 30 Hz, slow detect @ 5 Hz |
-| Video offline | `lane_detect_video_offline.cpp` | `--track` mode for latency A/B |
+| Hook                        | File                                   | Change                                                       |
+| --------------------------- | -------------------------------------- | ------------------------------------------------------------ |
+| Track bank + predict/update | `tracking/lane_tracker.hpp` (new)      | Core tracker API                                             |
+| Corridor edge filter        | `fitting/manifold_ransac.cpp`          | `collectCandidates` accepts optional `TrackCorridor`         |
+| Narrow Hough                | `lane_detection_runner.cpp`            | Per-track `configureParamsForBev` window around `xi_pred.vx` |
+| Fusion after detect         | `pipeline/lane_detection_pipeline.cpp` | `tracker.fuse(main_lanes)`                                   |
+| ROS node                    | `lane_detector_node.cpp`               | Timer: fast track @ 30 Hz, slow detect @ 5 Hz                |
+| Video offline               | `lane_detect_video_offline.cpp`        | `--track` mode for latency A/B                               |
 
 ### Suggested API
 
@@ -227,11 +229,11 @@ Adaptive main rate: run heavy detector when `max(trace(P)) > T` or lane count ch
 
 **Latency budget (640×360 BEV, 3 lanes):**
 
-| Step | Target |
-|------|--------|
-| Edge extract (reuse) | 15–40 ms |
-| Stripe search × 3 | 3–8 ms |
-| Kalman predict/update | &lt; 1 ms |
+| Step                        | Target                |
+| --------------------------- | --------------------- |
+| Edge extract (reuse)        | 15–40 ms              |
+| Stripe search × 3           | 3–8 ms                |
+| Kalman predict/update       | &lt; 1 ms             |
 | Main Lie-Hough (1/5 frames) | amortized ~400–800 ms |
 
 Effective **30 Hz display** with **~5 Hz full refresh** is realistic.
@@ -251,10 +253,10 @@ Effective **30 Hz display** with **~5 Hz full refresh** is realistic.
 
 Your intuition maps cleanly to a standard **predict–correct** tracker:
 
-1. **Prior**: CV on `xi` + growing lateral `sigma_lat(y)` corridor  
-2. **Fast likelihood**: stripe edge search inside corridor  
-3. **Slow likelihood**: main Lie-Hough + RANSAC with `R_det` from inlier ratio  
-4. **Posterior**: Kalman fusion → next prior  
+1. **Prior**: CV on `xi` + growing lateral `sigma_lat(y)` corridor
+2. **Fast likelihood**: stripe edge search inside corridor
+3. **Slow likelihood**: main Lie-Hough + RANSAC with `R_det` from inlier ratio
+4. **Posterior**: Kalman fusion → next prior
 
 The unknown “scheme for finding potential lanes” is **corridor-constrained stripe search** (v1) or **narrow-bin Hough** (v2). Both reuse existing edge extraction and `xi` geometry; neither requires retraining.
 
@@ -262,21 +264,22 @@ The unknown “scheme for finding potential lanes” is **corridor-constrained s
 
 ## Implementation status
 
-| Component | File | Status |
-|-----------|------|--------|
-| `LaneTracker` | `tracking/lane_tracker.hpp`, `src/tracking/lane_tracker.cpp` | Done |
-| Narrow Hough ROI | `narrowParamsForTracks()` | Done |
-| Corridor edge filter | `filterEdgesInTrackCorridors()` | Done |
-| Video tool `--track` | `lane_detect_video_offline` | Done |
+| Component            | File                                                         | Status |
+| -------------------- | ------------------------------------------------------------ | ------ |
+| `LaneTracker`        | `tracking/lane_tracker.hpp`, `src/tracking/lane_tracker.cpp` | Done   |
+| Narrow Hough ROI     | `narrowParamsForTracks()`                                    | Done   |
+| Corridor edge filter | `filterEdgesInTrackCorridors()`                              | Done   |
+| Video tool `--track` | `lane_detect_video_offline`                                  | Done   |
 
 ### Highway benchmark (stride 30, main every 3 frames, fixed-camera tuning)
 
-| Mode | Typical latency |
-|------|-----------------|
-| Full detect | ~2–4 s |
-| Stripe-only track | **~5–15 ms** |
+| Mode              | Typical latency |
+| ----------------- | --------------- |
+| Full detect       | ~2–4 s          |
+| Stripe-only track | **~5–15 ms**    |
 
 Tuning notes (fixed dashcam):
+
 - `fixed_camera=true`: no CV lateral predict between frames
 - `snap_on_main=true`: replace track state on main-detect frames
 - Stripe: near-field rows only + GN refine + max 5 px lateral delta per frame

@@ -1,16 +1,17 @@
-#include <memory>
-#include <string>
-#include <vector>
+#include "lie_lane_detection/pipeline/lane_detection_pipeline.hpp"
+#include "lie_lane_detection/visualization/visualization.hpp"
 
 #include <cv_bridge/cv_bridge.hpp>
 #include <image_transport/image_transport.hpp>
 #include <rclcpp/rclcpp.hpp>
-#include <visualization_msgs/msg/marker_array.hpp>
+
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <sensor_msgs/msg/image.hpp>
+#include <visualization_msgs/msg/marker_array.hpp>
 
-#include "lie_lane_detection/pipeline/lane_detection_pipeline.hpp"
-#include "lie_lane_detection/visualization/visualization.hpp"
+#include <memory>
+#include <string>
+#include <vector>
 
 namespace lie_lane_detection
 {
@@ -36,7 +37,8 @@ PipelineParams loadParams(rclcpp::Node & node)
   p.inlier_threshold_px = node.declare_parameter<double>("inlier_threshold_px", 5.0);
   p.ransac_iterations = node.declare_parameter<int>("ransac_iterations", 100);
   p.min_inliers = node.declare_parameter<int>("min_inliers", 15);
-  p.merge_converged_threshold_m = node.declare_parameter<double>("merge_converged_threshold_m", 1.5);
+  p.merge_converged_threshold_m =
+    node.declare_parameter<double>("merge_converged_threshold_m", 1.5);
   p.kappa_min = node.declare_parameter<double>("kappa_min", -0.2);
   p.kappa_max = node.declare_parameter<double>("kappa_max", 0.2);
   p.sigma_min = node.declare_parameter<double>("sigma_min", -0.15);
@@ -56,12 +58,14 @@ public:
     pipeline_(params_),
     frame_id_(declare_parameter<std::string>("frame_id", "base_link"))
   {
-    const std::string image_topic = declare_parameter<std::string>("image_topic", "/camera/image_raw");
+    const std::string image_topic =
+      declare_parameter<std::string>("image_topic", "/camera/image_raw");
     const std::string camera_info_topic =
       declare_parameter<std::string>("camera_info_topic", "/camera/camera_info");
 
     marker_pub_ = create_publisher<visualization_msgs::msg::MarkerArray>("/lanes/markers", 10);
-    merge_marker_pub_ = create_publisher<visualization_msgs::msg::MarkerArray>("/lanes/merge_markers", 10);
+    merge_marker_pub_ =
+      create_publisher<visualization_msgs::msg::MarkerArray>("/lanes/merge_markers", 10);
     bev_pub_ = image_transport::create_publisher(this, "/lanes/debug/bev");
     overlay_pub_ = image_transport::create_publisher(this, "/lanes/debug/overlay");
     hough_pub_ = image_transport::create_publisher(this, "/lanes/debug/hough");
@@ -69,20 +73,16 @@ public:
 
     camera_info_sub_ = create_subscription<sensor_msgs::msg::CameraInfo>(
       camera_info_topic, rclcpp::SensorDataQoS(),
-      [this](const sensor_msgs::msg::CameraInfo::SharedPtr msg) {
-        latest_camera_info_ = msg;
-      });
+      [this](const sensor_msgs::msg::CameraInfo::SharedPtr msg) { latest_camera_info_ = msg; });
 
     image_sub_ = image_transport::create_subscription(
-      this, image_topic,
-      std::bind(&LaneDetectorNode::onImage, this, std::placeholders::_1),
-      "raw", rmw_qos_profile_sensor_data);
+      this, image_topic, std::bind(&LaneDetectorNode::onImage, this, std::placeholders::_1), "raw",
+      rmw_qos_profile_sensor_data);
   }
 
 private:
   void publishCvImage(
-    const image_transport::Publisher & pub,
-    const cv::Mat & mat,
+    const image_transport::Publisher & pub, const cv::Mat & mat,
     const std_msgs::msg::Header & header)
   {
     if (mat.empty()) {

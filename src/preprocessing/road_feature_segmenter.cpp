@@ -1,10 +1,10 @@
 #include "lie_lane_detection/preprocessing/road_feature_segmenter.hpp"
 
+#include <opencv2/imgproc.hpp>
+
 #include <array>
 #include <chrono>
 #include <cmath>
-
-#include <opencv2/imgproc.hpp>
 
 namespace lie_lane_detection
 {
@@ -45,7 +45,8 @@ bool RoadFeatureSegmenter::load(const std::string & onnx_path)
   try {
     net_ = cv::dnn::readNetFromONNX(onnx_path);
   } catch (const cv::Exception & ex) {
-    fprintf(stderr, "RoadFeatureSegmenter: failed to load ONNX %s: %s\n", onnx_path.c_str(), ex.what());
+    fprintf(
+      stderr, "RoadFeatureSegmenter: failed to load ONNX %s: %s\n", onnx_path.c_str(), ex.what());
     return false;
   }
   if (net_.empty()) {
@@ -129,7 +130,7 @@ RoadFeatureSegmenter::Result RoadFeatureSegmenter::infer(const cv::Mat & bev_bgr
       const float p_snow = result.snow_prob.at<float>(y, x);
       const bool snow = p_snow >= static_cast<float>(snow_reject_threshold_);
       const bool roadish = p_road >= static_cast<float>(road_threshold_) ||
-        p_lane >= static_cast<float>(lane_threshold_);
+                           p_lane >= static_cast<float>(lane_threshold_);
       if (roadish && !snow) {
         result.drivable_mask.at<uchar>(y, x) = 255;
       }
@@ -140,10 +141,9 @@ RoadFeatureSegmenter::Result RoadFeatureSegmenter::infer(const cv::Mat & bev_bgr
       if (p_lane > 0.20f) {
         result.debug_bgr.at<cv::Vec3b>(y, x)[0] =
           static_cast<uchar>(std::min(255.0f, p_lane * 220.0f));
-        result.debug_bgr.at<cv::Vec3b>(y, x)[1] =
-          static_cast<uchar>(std::max(
-            result.debug_bgr.at<cv::Vec3b>(y, x)[1],
-            static_cast<uchar>(std::min(255.0f, p_lane * 180.0f))));
+        result.debug_bgr.at<cv::Vec3b>(y, x)[1] = static_cast<uchar>(std::max(
+          result.debug_bgr.at<cv::Vec3b>(y, x)[1],
+          static_cast<uchar>(std::min(255.0f, p_lane * 180.0f))));
       }
       if (p_snow > 0.20f) {
         result.debug_bgr.at<cv::Vec3b>(y, x)[2] =

@@ -1,8 +1,8 @@
 #pragma once
 
-#include <opencv2/core.hpp>
-
 #include "lie_lane_detection/mosaic/pose2d.hpp"
+
+#include <opencv2/core.hpp>
 
 namespace lie_lane_detection
 {
@@ -43,14 +43,14 @@ class OdomBevMosaicAccumulator
 public:
   explicit OdomBevMosaicAccumulator(OdomBevMosaicParams params = OdomBevMosaicParams{});
 
-  void setParams(const OdomBevMosaicParams & params) {params_ = params;}
+  void setParams(const OdomBevMosaicParams & params) { params_ = params; }
   void reset();
 
   OdomBevMosaicFrameResult accumulate(const cv::Mat & bev_bgr, const Pose2d & pose_map);
 
-  const cv::Mat & canvas() const {return canvas_;}
-  const OdomBevMosaicMeta & meta() const {return meta_;}
-  bool initialized() const {return initialized_;}
+  const cv::Mat & canvas() const { return canvas_; }
+  const OdomBevMosaicMeta & meta() const { return meta_; }
+  bool initialized() const { return initialized_; }
 
   /// Map a metric ground point in the BEV body frame to canvas pixel coordinates.
   cv::Point2d mapBodyToCanvasPx(double lateral_m, double forward_m) const;

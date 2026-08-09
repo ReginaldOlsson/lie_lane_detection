@@ -1,10 +1,10 @@
 #pragma once
 
-#include <vector>
+#include "lie_lane_detection/core/types.hpp"
 
 #include <opencv2/core.hpp>
 
-#include "lie_lane_detection/core/types.hpp"
+#include <vector>
 
 namespace lie_lane_detection
 {

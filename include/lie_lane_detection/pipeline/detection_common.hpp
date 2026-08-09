@@ -1,10 +1,10 @@
 #pragma once
 
-#include <opencv2/core.hpp>
-
+#include "lie_lane_detection/core/types.hpp"
 #include "lie_lane_detection/fitting/manifold_ransac.hpp"
 #include "lie_lane_detection/geometry/template_curve.hpp"
-#include "lie_lane_detection/core/types.hpp"
+
+#include <opencv2/core.hpp>
 
 namespace lie_lane_detection
 {
@@ -12,25 +12,19 @@ namespace lie_lane_detection
 bool isBorderLane(const LaneHypothesis & lane, const PipelineParams & params);
 
 bool isTooCloseToExisting(
-  const LaneHypothesis & lane,
-  const std::vector<LaneHypothesis> & existing,
-  double min_sep_px);
+  const LaneHypothesis & lane, const std::vector<LaneHypothesis> & existing, double min_sep_px);
 
 bool passesQualityGate(
-  const LaneHypothesis & lane,
-  const PipelineParams & params,
-  double image_height,
+  const LaneHypothesis & lane, const PipelineParams & params, double image_height,
   const TemplateCurve * template_curve = nullptr);
 
 /// Pre-vote edge filter: drop gradients inconsistent with near-vertical BEV lanes.
 std::vector<EdgePoint> filterLaneOrientedEdges(
-  const std::vector<EdgePoint> & edges,
-  const PipelineParams & params);
+  const std::vector<EdgePoint> & edges, const PipelineParams & params);
 
 /// Post-extraction prune: relative score, parallel omega, output cap.
 std::vector<LaneHypothesis> pruneNoiseLaneHypotheses(
-  std::vector<LaneHypothesis> lanes,
-  const PipelineParams & params);
+  std::vector<LaneHypothesis> lanes, const PipelineParams & params);
 
 /// Highest valid forward row in BEV (excludes bottom hood crop + edge margin).
 double bevEffectiveYMax(int bev_rows, const PipelineParams & params);
@@ -49,9 +43,7 @@ cv::Mat prepareBevForDetection(const cv::Mat & bev_bgr, const PipelineParams & p
 
 /// Filter BEV edge debug image: threshold, road mask, exclude IPM trapezoid + bottom cut.
 cv::Mat filterBevEdgeArtifacts(
-  const cv::Mat & edges_gray,
-  const cv::Mat & bev_bgr,
-  const PipelineParams & params,
+  const cv::Mat & edges_gray, const cv::Mat & bev_bgr, const PipelineParams & params,
   const cv::Mat & H_img2bev = cv::Mat());
 
 struct BevTrackingPrep
@@ -61,9 +53,7 @@ struct BevTrackingPrep
 };
 
 /// Grayscale + road mask for lane tracking (edges, stripe, main detect); BGR kept for overlay.
-BevTrackingPrep prepareBevGrayForTracking(
-  const cv::Mat & bev_bgr,
-  const PipelineParams & params);
+BevTrackingPrep prepareBevGrayForTracking(const cv::Mat & bev_bgr, const PipelineParams & params);
 
 struct BevPreprocessResult
 {
@@ -75,51 +65,35 @@ struct BevPreprocessResult
 
 /// Grayscale road-masked preprocess for detection; optional Otsu on filtered debug topic.
 BevPreprocessResult preprocessBevForLaneDetection(
-  const cv::Mat & bev_bgr,
-  const PipelineParams & params);
+  const cv::Mat & bev_bgr, const PipelineParams & params);
 
 std::vector<EdgePoint> filterBorderEdges(
-  const std::vector<EdgePoint> & edges,
-  double x_min,
-  double x_max);
+  const std::vector<EdgePoint> & edges, double x_min, double x_max);
 
-std::vector<EdgePoint> filterBevYMaxEdges(
-  const std::vector<EdgePoint> & edges,
-  double y_max);
+std::vector<EdgePoint> filterBevYMaxEdges(const std::vector<EdgePoint> & edges, double y_max);
 
 std::vector<EdgePoint> peelEdgesNearCurve(
-  const std::vector<EdgePoint> & edges,
-  const TemplateCurve & curve,
-  const XiVector & xi,
+  const std::vector<EdgePoint> & edges, const TemplateCurve & curve, const XiVector & xi,
   double margin_px);
 
 std::vector<EdgePoint> subsampleEdges(const std::vector<EdgePoint> & edges, size_t max_count);
 
 std::vector<LineSegment> filterBorderLines(
-  const std::vector<LineSegment> & lines,
-  double x_min,
-  double x_max);
+  const std::vector<LineSegment> & lines, double x_min, double x_max);
 
-std::vector<LineSegment> filterBevYMaxLines(
-  const std::vector<LineSegment> & lines,
-  double y_max);
+std::vector<LineSegment> filterBevYMaxLines(const std::vector<LineSegment> & lines, double y_max);
 
 std::vector<LineSegment> peelLinesNearCurve(
-  const std::vector<LineSegment> & lines,
-  const TemplateCurve & curve,
-  const XiVector & xi,
+  const std::vector<LineSegment> & lines, const TemplateCurve & curve, const XiVector & xi,
   double margin_px);
 
 /// Sample line midpoints (and endpoints for long segments) as pseudo-edges for RANSAC.
 std::vector<EdgePoint> linesToRefineEdges(const std::vector<LineSegment> & lines);
 
 LaneHypothesis pickBestSeed(
-  const std::vector<LaneHypothesis> & seeds,
-  const std::vector<EdgePoint> & edges,
-  ManifoldRansac & ransac,
-  const std::vector<LaneHypothesis> & accepted,
-  const PipelineParams & params,
-  double image_height,
+  const std::vector<LaneHypothesis> & seeds, const std::vector<EdgePoint> & edges,
+  ManifoldRansac & ransac, const std::vector<LaneHypothesis> & accepted,
+  const PipelineParams & params, double image_height,
   const TemplateCurve * template_curve = nullptr);
 
 }  // namespace lie_lane_detection

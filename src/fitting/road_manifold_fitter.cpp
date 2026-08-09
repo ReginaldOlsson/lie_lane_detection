@@ -1,12 +1,12 @@
 #include "lie_lane_detection/fitting/road_manifold_fitter.hpp"
 
+#include <ceres/ceres.h>
+#include <ceres/loss_function.h>
+
 #include <algorithm>
 #include <cmath>
 #include <numeric>
 #include <vector>
-
-#include <ceres/ceres.h>
-#include <ceres/loss_function.h>
 
 namespace lie_lane_detection
 {
@@ -20,10 +20,17 @@ class RoadLineSegmentFunctor
 {
 public:
   RoadLineSegmentFunctor(
-    int lane_slot, double x1, double y1, double x2, double y2,
-    double soft_w, double len_w, double heading_w, TemplateCurve * curve)
-  : lane_slot_(lane_slot), x1_(x1), y1_(y1), x2_(x2), y2_(y2),
-    soft_w_(soft_w), len_w_(len_w), heading_w_(heading_w), curve_(curve)
+    int lane_slot, double x1, double y1, double x2, double y2, double soft_w, double len_w,
+    double heading_w, TemplateCurve * curve)
+  : lane_slot_(lane_slot),
+    x1_(x1),
+    y1_(y1),
+    x2_(x2),
+    y2_(y2),
+    soft_w_(soft_w),
+    len_w_(len_w),
+    heading_w_(heading_w),
+    curve_(curve)
   {
   }
 
@@ -79,10 +86,16 @@ class RoadEdgeFunctor
 {
 public:
   RoadEdgeFunctor(
-    int lane_slot, double px, double py, double orientation,
-    double soft_w, double len_w, double heading_w, TemplateCurve * curve)
-  : lane_slot_(lane_slot), px_(px), py_(py), orientation_(orientation),
-    soft_w_(soft_w), len_w_(len_w), heading_w_(heading_w), curve_(curve)
+    int lane_slot, double px, double py, double orientation, double soft_w, double len_w,
+    double heading_w, TemplateCurve * curve)
+  : lane_slot_(lane_slot),
+    px_(px),
+    py_(py),
+    orientation_(orientation),
+    soft_w_(soft_w),
+    len_w_(len_w),
+    heading_w_(heading_w),
+    curve_(curve)
   {
   }
 
@@ -130,10 +143,7 @@ private:
 class LaneWidthPriorFunctor
 {
 public:
-  LaneWidthPriorFunctor(double w_init, double weight)
-  : w_init_(w_init), weight_(weight)
-  {
-  }
+  LaneWidthPriorFunctor(double w_init, double weight) : w_init_(w_init), weight_(weight) {}
 
   bool operator()(const double * const road, double * residual) const
   {
@@ -148,7 +158,8 @@ private:
 
 }  // namespace
 
-RoadManifoldFitter::RoadManifoldFitter(const PipelineParams & params, TemplateCurve * template_curve)
+RoadManifoldFitter::RoadManifoldFitter(
+  const PipelineParams & params, TemplateCurve * template_curve)
 : params_(params), template_curve_(template_curve), ceres_fitter_(params, template_curve)
 {
 }
@@ -175,11 +186,7 @@ int RoadManifoldFitter::laneSlotForRank(int rank, int total_lanes)
 }
 
 XiVector RoadManifoldFitter::decodeLaneXi(
-  const double * ego_xi,
-  int lane_index,
-  double kappa,
-  double sigma,
-  double w_lane)
+  const double * ego_xi, int lane_index, double kappa, double sigma, double w_lane)
 {
   Sophus::SE2d::Tangent ego_tangent;
   ego_tangent << ego_xi[0], ego_xi[1], ego_xi[2];
@@ -198,8 +205,7 @@ XiVector RoadManifoldFitter::decodeLaneXi(
 }
 
 std::vector<RoadManifoldFitter::LaneAssignment> RoadManifoldFitter::assignLanes(
-  const std::vector<LaneHypothesis> & lanes,
-  const std::vector<LineSegment> & lines) const
+  const std::vector<LaneHypothesis> & lanes, const std::vector<LineSegment> & lines) const
 {
   std::vector<LaneAssignment> assignments(lanes.size());
   ObservationAssociation assoc(params_, template_curve_);
@@ -207,8 +213,8 @@ std::vector<RoadManifoldFitter::LaneAssignment> RoadManifoldFitter::assignLanes(
   std::vector<size_t> order(lanes.size());
   std::iota(order.begin(), order.end(), 0);
   std::sort(order.begin(), order.end(), [&](size_t a, size_t b) {
-      return lanes[a].xi[0] < lanes[b].xi[0];
-    });
+    return lanes[a].xi[0] < lanes[b].xi[0];
+  });
 
   for (size_t rank = 0; rank < order.size(); ++rank) {
     const size_t li = order[rank];
@@ -220,8 +226,7 @@ std::vector<RoadManifoldFitter::LaneAssignment> RoadManifoldFitter::assignLanes(
 }
 
 std::vector<RoadManifoldFitter::LaneAssignment> RoadManifoldFitter::assignLanes(
-  const std::vector<LaneHypothesis> & lanes,
-  const std::vector<EdgePoint> & edges) const
+  const std::vector<LaneHypothesis> & lanes, const std::vector<EdgePoint> & edges) const
 {
   std::vector<LaneAssignment> assignments(lanes.size());
   ObservationAssociation assoc(params_, template_curve_);
@@ -229,8 +234,8 @@ std::vector<RoadManifoldFitter::LaneAssignment> RoadManifoldFitter::assignLanes(
   std::vector<size_t> order(lanes.size());
   std::iota(order.begin(), order.end(), 0);
   std::sort(order.begin(), order.end(), [&](size_t a, size_t b) {
-      return lanes[a].xi[0] < lanes[b].xi[0];
-    });
+    return lanes[a].xi[0] < lanes[b].xi[0];
+  });
 
   for (size_t rank = 0; rank < order.size(); ++rank) {
     const size_t li = order[rank];
@@ -242,8 +247,7 @@ std::vector<RoadManifoldFitter::LaneAssignment> RoadManifoldFitter::assignLanes(
 }
 
 bool RoadManifoldFitter::optimizeRoad(
-  const std::vector<LaneHypothesis> & seeds,
-  const std::vector<LaneAssignment> & assignments,
+  const std::vector<LaneHypothesis> & seeds, const std::vector<LaneAssignment> & assignments,
   double * road_params) const
 {
   if (template_curve_ == nullptr) {
@@ -257,20 +261,19 @@ bool RoadManifoldFitter::optimizeRoad(
   for (size_t i = 0; i < assignments.size(); ++i) {
     const int slot = assignments[i].lane_slot;
     for (const auto & a : assignments[i].lines) {
-      ceres::CostFunction * cost =
-        new ceres::NumericDiffCostFunction<RoadLineSegmentFunctor, ceres::CENTRAL, 4, kRoadParamSize>(
-        new RoadLineSegmentFunctor(
-          slot, a.segment.x1, a.segment.y1, a.segment.x2, a.segment.y2,
-          a.soft_weight, a.length_weight, params_.ceres_heading_weight, template_curve_));
+      ceres::CostFunction * cost = new ceres::NumericDiffCostFunction<
+        RoadLineSegmentFunctor, ceres::CENTRAL, 4, kRoadParamSize>(new RoadLineSegmentFunctor(
+        slot, a.segment.x1, a.segment.y1, a.segment.x2, a.segment.y2, a.soft_weight,
+        a.length_weight, params_.ceres_heading_weight, template_curve_));
       problem.AddResidualBlock(cost, loss, road_params);
       ++residual_blocks;
     }
     for (const auto & a : assignments[i].edges) {
       ceres::CostFunction * cost =
         new ceres::NumericDiffCostFunction<RoadEdgeFunctor, ceres::CENTRAL, 2, kRoadParamSize>(
-        new RoadEdgeFunctor(
-          slot, a.edge.x, a.edge.y, a.edge.orientation,
-          a.soft_weight, a.length_weight, params_.ceres_heading_weight, template_curve_));
+          new RoadEdgeFunctor(
+            slot, a.edge.x, a.edge.y, a.edge.orientation, a.soft_weight, a.length_weight,
+            params_.ceres_heading_weight, template_curve_));
       problem.AddResidualBlock(cost, loss, road_params);
       ++residual_blocks;
     }
@@ -284,7 +287,7 @@ bool RoadManifoldFitter::optimizeRoad(
 
   ceres::CostFunction * prior =
     new ceres::NumericDiffCostFunction<LaneWidthPriorFunctor, ceres::CENTRAL, 1, kRoadParamSize>(
-    new LaneWidthPriorFunctor(road_params[5], 0.05));
+      new LaneWidthPriorFunctor(road_params[5], 0.05));
   problem.AddResidualBlock(prior, nullptr, road_params);
 
   problem.SetParameterLowerBound(road_params, 5, params_.min_lane_separation_px);
@@ -310,8 +313,7 @@ bool RoadManifoldFitter::optimizeRoad(
 }
 
 bool RoadManifoldFitter::refine(
-  std::vector<LaneHypothesis> & lanes,
-  const std::vector<LineSegment> & lines) const
+  std::vector<LaneHypothesis> & lanes, const std::vector<LineSegment> & lines) const
 {
   if (!params_.use_road_manifold_joint || lanes.size() < 2 || template_curve_ == nullptr) {
     return false;
@@ -338,8 +340,8 @@ bool RoadManifoldFitter::refine(
   std::vector<size_t> order(lanes.size());
   std::iota(order.begin(), order.end(), 0);
   std::sort(order.begin(), order.end(), [&](size_t a, size_t b) {
-      return lanes[a].xi[0] < lanes[b].xi[0];
-    });
+    return lanes[a].xi[0] < lanes[b].xi[0];
+  });
 
   double w_init = params_.min_lane_separation_px * 2.0;
   if (lanes.size() == 2) {
@@ -395,16 +397,14 @@ bool RoadManifoldFitter::refine(
 
   for (size_t i = 0; i < lanes.size(); ++i) {
     const int slot = assignments[i].lane_slot;
-    lanes[i].xi = decodeLaneXi(
-      road_params, slot, road_params[3], road_params[4], road_params[5]);
+    lanes[i].xi = decodeLaneXi(road_params, slot, road_params[3], road_params[4], road_params[5]);
     lanes[i].polyline = template_curve_->samplePolyline(lanes[i].xi);
   }
   return true;
 }
 
 bool RoadManifoldFitter::refine(
-  std::vector<LaneHypothesis> & lanes,
-  const std::vector<EdgePoint> & edges) const
+  std::vector<LaneHypothesis> & lanes, const std::vector<EdgePoint> & edges) const
 {
   if (!params_.use_road_manifold_joint || lanes.size() < 2 || template_curve_ == nullptr) {
     return false;
@@ -431,8 +431,8 @@ bool RoadManifoldFitter::refine(
   std::vector<size_t> order(lanes.size());
   std::iota(order.begin(), order.end(), 0);
   std::sort(order.begin(), order.end(), [&](size_t a, size_t b) {
-      return lanes[a].xi[0] < lanes[b].xi[0];
-    });
+    return lanes[a].xi[0] < lanes[b].xi[0];
+  });
 
   double w_init = params_.min_lane_separation_px * 2.0;
   if (lanes.size() == 2) {
@@ -488,8 +488,7 @@ bool RoadManifoldFitter::refine(
 
   for (size_t i = 0; i < lanes.size(); ++i) {
     const int slot = assignments[i].lane_slot;
-    lanes[i].xi = decodeLaneXi(
-      road_params, slot, road_params[3], road_params[4], road_params[5]);
+    lanes[i].xi = decodeLaneXi(road_params, slot, road_params[3], road_params[4], road_params[5]);
     lanes[i].polyline = template_curve_->samplePolyline(lanes[i].xi);
   }
   return true;

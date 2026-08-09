@@ -1,8 +1,8 @@
 #pragma once
 
-#include <vector>
-
 #include "lie_lane_detection/core/types.hpp"
+
+#include <vector>
 
 namespace lie_lane_detection
 {

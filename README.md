@@ -25,9 +25,9 @@ compare_lane_detection --scenes /home/mosal/rviz_ws/lane_detection_test_images \
 ros2 launch lie_lane_detection compare_pipelines.launch.py
 ```
 
-| Pipeline | Node | Marker topic | Debug topics |
-|----------|------|--------------|--------------|
-| Edge-pixel Lie-Hough | `lane_detector_node` | `/lanes/markers` | `/lanes/debug/*` |
+| Pipeline             | Node                      | Marker topic          | Debug topics          |
+| -------------------- | ------------------------- | --------------------- | --------------------- |
+| Edge-pixel Lie-Hough | `lane_detector_node`      | `/lanes/markers`      | `/lanes/debug/*`      |
 | Line-first Lie-Hough | `line_lane_detector_node` | `/lanes_line/markers` | `/lanes_line/debug/*` |
 
 Line node also publishes `/lanes_line/stats` (latency + segment count).
@@ -47,14 +47,14 @@ flowchart LR
   G --> H[Markers + debug images]
 ```
 
-| Stage | Module | Role |
-|-------|--------|------|
-| 1 | `preprocessing/IPMTransformer` | Warp forward camera view to metric BEV |
-| 2 | `preprocessing/EdgeExtractor` | CLAHE + steerable Sobel bank + hysteresis |
-| 3 | `voting/LieHoughVoter` | Coarse-to-fine voting in SE(2) + (kappa, sigma) |
-| 4 | `fitting/ManifoldRansac` | Refine each seed; inliers on the lane manifold |
-| 5 | `extraction/MultiLaneExtractor` | NMS, quality gates, lane roles |
-| 6 | `extraction/MergeTopology` | Label parallel / merge / diverge pairs |
+| Stage | Module                          | Role                                            |
+| ----- | ------------------------------- | ----------------------------------------------- |
+| 1     | `preprocessing/IPMTransformer`  | Warp forward camera view to metric BEV          |
+| 2     | `preprocessing/EdgeExtractor`   | CLAHE + steerable Sobel bank + hysteresis       |
+| 3     | `voting/LieHoughVoter`          | Coarse-to-fine voting in SE(2) + (kappa, sigma) |
+| 4     | `fitting/ManifoldRansac`        | Refine each seed; inliers on the lane manifold  |
+| 5     | `extraction/MultiLaneExtractor` | NMS, quality gates, lane roles                  |
+| 6     | `extraction/MergeTopology`      | Label parallel / merge / diverge pairs          |
 
 Heavy steps use **Intel TBB** (`parallel_for`, `parallel_reduce`) for multi-core speed.
 
@@ -163,14 +163,14 @@ ros2 launch lie_lane_detection lane_detector.launch.py \
 
 ### Published topics
 
-| Topic | Type | Description |
-|-------|------|-------------|
-| `/lanes/markers` | `visualization_msgs/MarkerArray` | Detected lane polylines |
-| `/lanes/merge_markers` | `visualization_msgs/MarkerArray` | Merge/diverge events |
-| `/lanes/debug/bev` | `sensor_msgs/Image` | IPM bird's-eye image |
-| `/lanes/debug/overlay` | `sensor_msgs/Image` | Lanes drawn on BEV |
-| `/lanes/debug/edges` | `sensor_msgs/Image` | Edge map |
-| `/lanes/debug/hough` | `sensor_msgs/Image` | Hough accumulator slice |
+| Topic                  | Type                             | Description             |
+| ---------------------- | -------------------------------- | ----------------------- |
+| `/lanes/markers`       | `visualization_msgs/MarkerArray` | Detected lane polylines |
+| `/lanes/merge_markers` | `visualization_msgs/MarkerArray` | Merge/diverge events    |
+| `/lanes/debug/bev`     | `sensor_msgs/Image`              | IPM bird's-eye image    |
+| `/lanes/debug/overlay` | `sensor_msgs/Image`              | Lanes drawn on BEV      |
+| `/lanes/debug/edges`   | `sensor_msgs/Image`              | Edge map                |
+| `/lanes/debug/hough`   | `sensor_msgs/Image`              | Hough accumulator slice |
 
 ### Parameters
 
@@ -212,10 +212,10 @@ Creates 9 BEV scenes with `ground_truth.txt`, `detection_report.txt`, and `curve
 
 ## Test data
 
-| Location | Content |
-|----------|---------|
-| `lane_detection_test_images/` | 9 synthetic BEV scenes (straight, curved, merge, split, dashed, occlusion, IPM-style, combined) |
-| `lane_detection_test_images/real_dataset/` | 4 public benchmark frames (TuSimple x3, CULane x1) + `results_*` folders |
+| Location                                   | Content                                                                                         |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| `lane_detection_test_images/`              | 9 synthetic BEV scenes (straight, curved, merge, split, dashed, occlusion, IPM-style, combined) |
+| `lane_detection_test_images/real_dataset/` | 4 public benchmark frames (TuSimple x3, CULane x1) + `results_*` folders                        |
 
 Synthetic curved scenes (`02_curved_highway`, `08_split_diverge`, `09_combined_challenge`) are the primary regression set for kappa/sigma/omega accuracy.
 
@@ -258,19 +258,20 @@ lie_lane_detection/
 
 **Executables**
 
-| Binary | Location | Purpose |
-|--------|----------|---------|
-| `frontal_ipm_node` | `src/nodes/` | Auto-IPM: camera → `/ipm/bev` |
-| `bev_lane_detector_node` | `src/nodes/` | BEV-only lane detection |
-| `bev_mosaic_node` | `src/nodes/` | Temporal BEV orthomosaic (ECC / ORB registration) |
-| `tracked_lane_detector_node` | `src/nodes/` | **Deprecated** monolithic IPM + detect |
-| `lane_detector_node` | `src/nodes/` | Edge-pixel Lie-Hough ROS node (manual IPM) |
-| `line_lane_detector_node` | `src/nodes/` | Line-first Lie-Hough ROS node (manual IPM) |
-| `lane_detect_offline` | `src/tools/` | Single-image offline runner |
-| `compare_lane_detection` | `src/tools/` | Edge vs line A/B comparison |
-| `generate_test_images` | `src/tools/` | Synthetic dataset + batch detect |
+| Binary                       | Location     | Purpose                                           |
+| ---------------------------- | ------------ | ------------------------------------------------- |
+| `frontal_ipm_node`           | `src/nodes/` | Auto-IPM: camera → `/ipm/bev`                     |
+| `bev_lane_detector_node`     | `src/nodes/` | BEV-only lane detection                           |
+| `bev_mosaic_node`            | `src/nodes/` | Temporal BEV orthomosaic (ECC / ORB registration) |
+| `tracked_lane_detector_node` | `src/nodes/` | **Deprecated** monolithic IPM + detect            |
+| `lane_detector_node`         | `src/nodes/` | Edge-pixel Lie-Hough ROS node (manual IPM)        |
+| `line_lane_detector_node`    | `src/nodes/` | Line-first Lie-Hough ROS node (manual IPM)        |
+| `lane_detect_offline`        | `src/tools/` | Single-image offline runner                       |
+| `compare_lane_detection`     | `src/tools/` | Edge vs line A/B comparison                       |
+| `generate_test_images`       | `src/tools/` | Synthetic dataset + batch detect                  |
 
 **Core library:** `lie_lane_detection_core` — entry points:
+
 - `detectLanesInBev()` → `pipeline/lane_detection_runner.hpp`
 - `detectLanesInBevFromLines()` → `pipeline/line_lane_detection_runner.hpp`
 

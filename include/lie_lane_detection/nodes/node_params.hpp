@@ -1,8 +1,8 @@
 #pragma once
 
-#include <rclcpp/rclcpp.hpp>
-
 #include "lie_lane_detection/core/types.hpp"
+
+#include <rclcpp/rclcpp.hpp>
 
 namespace lie_lane_detection
 {

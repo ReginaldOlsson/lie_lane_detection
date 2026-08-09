@@ -1,16 +1,17 @@
 #pragma once
 
-#include <opencv2/core.hpp>
-#include <sensor_msgs/msg/camera_info.hpp>
-
+#include "lie_lane_detection/core/types.hpp"
+#include "lie_lane_detection/extraction/merge_topology.hpp"
+#include "lie_lane_detection/extraction/multi_lane_extractor.hpp"
+#include "lie_lane_detection/fitting/manifold_ransac.hpp"
+#include "lie_lane_detection/geometry/template_curve.hpp"
 #include "lie_lane_detection/preprocessing/edge_extractor.hpp"
 #include "lie_lane_detection/preprocessing/ipm_transformer.hpp"
 #include "lie_lane_detection/voting/lie_hough_voter.hpp"
-#include "lie_lane_detection/fitting/manifold_ransac.hpp"
-#include "lie_lane_detection/extraction/merge_topology.hpp"
-#include "lie_lane_detection/extraction/multi_lane_extractor.hpp"
-#include "lie_lane_detection/geometry/template_curve.hpp"
-#include "lie_lane_detection/core/types.hpp"
+
+#include <opencv2/core.hpp>
+
+#include <sensor_msgs/msg/camera_info.hpp>
 
 namespace lie_lane_detection
 {
@@ -23,10 +24,9 @@ public:
   void updateParams(const PipelineParams & params);
 
   LaneDetectionResult detect(
-    const cv::Mat & image_bgr,
-    const sensor_msgs::msg::CameraInfo * camera_info = nullptr);
+    const cv::Mat & image_bgr, const sensor_msgs::msg::CameraInfo * camera_info = nullptr);
 
-  const IPMTransformer & ipm() const {return ipm_;}
+  const IPMTransformer & ipm() const { return ipm_; }
 
 private:
   PipelineParams params_;

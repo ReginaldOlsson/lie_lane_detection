@@ -1,17 +1,18 @@
-#include <memory>
-#include <string>
-#include <vector>
+#include "lie_lane_detection/pipeline/line_lane_detection_pipeline.hpp"
+#include "lie_lane_detection/visualization/visualization.hpp"
 
 #include <cv_bridge/cv_bridge.hpp>
 #include <image_transport/image_transport.hpp>
 #include <rclcpp/rclcpp.hpp>
-#include <std_msgs/msg/string.hpp>
-#include <visualization_msgs/msg/marker_array.hpp>
+
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <sensor_msgs/msg/image.hpp>
+#include <std_msgs/msg/string.hpp>
+#include <visualization_msgs/msg/marker_array.hpp>
 
-#include "lie_lane_detection/pipeline/line_lane_detection_pipeline.hpp"
-#include "lie_lane_detection/visualization/visualization.hpp"
+#include <memory>
+#include <string>
+#include <vector>
 
 namespace lie_lane_detection
 {
@@ -60,7 +61,8 @@ public:
     pipeline_(params_),
     frame_id_(declare_parameter<std::string>("frame_id", "base_link"))
   {
-    const std::string image_topic = declare_parameter<std::string>("image_topic", "/camera/image_raw");
+    const std::string image_topic =
+      declare_parameter<std::string>("image_topic", "/camera/image_raw");
     const std::string camera_info_topic =
       declare_parameter<std::string>("camera_info_topic", "/camera/camera_info");
 
@@ -74,13 +76,10 @@ public:
 
     camera_info_sub_ = create_subscription<sensor_msgs::msg::CameraInfo>(
       camera_info_topic, rclcpp::SensorDataQoS(),
-      [this](const sensor_msgs::msg::CameraInfo::SharedPtr msg) {
-        latest_camera_info_ = msg;
-      });
+      [this](const sensor_msgs::msg::CameraInfo::SharedPtr msg) { latest_camera_info_ = msg; });
 
     image_sub_ = image_transport::create_subscription(
-      this, image_topic,
-      std::bind(&LineLaneDetectorNode::onImage, this, std::placeholders::_1),
+      this, image_topic, std::bind(&LineLaneDetectorNode::onImage, this, std::placeholders::_1),
       "raw", rmw_qos_profile_sensor_data);
 
     stats_pub_ = create_publisher<std_msgs::msg::String>("/lanes_line/stats", 10);
@@ -88,8 +87,7 @@ public:
 
 private:
   void publishCvImage(
-    const image_transport::Publisher & pub,
-    const cv::Mat & mat,
+    const image_transport::Publisher & pub, const cv::Mat & mat,
     const std_msgs::msg::Header & header)
   {
     if (mat.empty()) {
@@ -124,20 +122,19 @@ private:
     publishCvImage(lines_pub_, result.debug.edges, msg->header);
 
     std_msgs::msg::String stats;
-    stats.data =
-      "lines=" + std::to_string(result.line_segment_count) +
-      " edges=" + std::to_string(result.edge_point_count) +
-      " lanes=" + std::to_string(result.lanes.size()) +
-      " ms=" + std::to_string(result.elapsed_ms) +
-      " line_hough_ms=" + std::to_string(result.line_hough_ms) +
-      " lie_vote_ms=" + std::to_string(result.lie_vote_ms);
+    stats.data = "lines=" + std::to_string(result.line_segment_count) +
+                 " edges=" + std::to_string(result.edge_point_count) +
+                 " lanes=" + std::to_string(result.lanes.size()) +
+                 " ms=" + std::to_string(result.elapsed_ms) +
+                 " line_hough_ms=" + std::to_string(result.line_hough_ms) +
+                 " lie_vote_ms=" + std::to_string(result.lie_vote_ms);
     stats_pub_->publish(stats);
 
     RCLCPP_INFO_THROTTLE(
       get_logger(), *get_clock(), 2000,
       "Line pipeline: %zu lanes, %zu segments, %.1f ms (hough %.1f, vote %.1f)",
-      result.lanes.size(), result.line_segment_count, result.elapsed_ms,
-      result.line_hough_ms, result.lie_vote_ms);
+      result.lanes.size(), result.line_segment_count, result.elapsed_ms, result.line_hough_ms,
+      result.lie_vote_ms);
   }
 
   PipelineParams params_;

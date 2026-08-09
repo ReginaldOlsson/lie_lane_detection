@@ -1,17 +1,17 @@
 #include "lie_lane_detection/pipeline/intensity_strip_lane_detector.hpp"
 
+#include "lie_lane_detection/common/parallel.hpp"
+#include "lie_lane_detection/pipeline/detection_common.hpp"
+#include "lie_lane_detection/pipeline/lane_detection_runner.hpp"
+#include "lie_lane_detection/visualization/visualization.hpp"
+
+#include <opencv2/imgproc.hpp>
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstring>
 #include <sstream>
-
-#include <opencv2/imgproc.hpp>
-
-#include "lie_lane_detection/common/parallel.hpp"
-#include "lie_lane_detection/pipeline/detection_common.hpp"
-#include "lie_lane_detection/pipeline/lane_detection_runner.hpp"
-#include "lie_lane_detection/visualization/visualization.hpp"
 
 namespace lie_lane_detection
 {
@@ -70,10 +70,7 @@ void smoothProjection(std::vector<float> & proj, int ksize)
 }
 
 std::vector<int> findProjectionPeaks(
-  const std::vector<float> & proj,
-  double min_height_ratio,
-  int min_separation_px,
-  int max_peaks)
+  const std::vector<float> & proj, double min_height_ratio, int min_separation_px, int max_peaks)
 {
   if (proj.empty()) {
     return {};
@@ -90,16 +87,16 @@ std::vector<int> findProjectionPeaks(
     if (proj[static_cast<size_t>(x)] < min_height) {
       continue;
     }
-    if (proj[static_cast<size_t>(x)] >= proj[static_cast<size_t>(x - 1)] &&
-      proj[static_cast<size_t>(x)] > proj[static_cast<size_t>(x + 1)])
-    {
+    if (
+      proj[static_cast<size_t>(x)] >= proj[static_cast<size_t>(x - 1)] &&
+      proj[static_cast<size_t>(x)] > proj[static_cast<size_t>(x + 1)]) {
       candidates.emplace_back(proj[static_cast<size_t>(x)], x);
     }
   }
 
-  std::sort(
-    candidates.begin(), candidates.end(),
-    [](const auto & a, const auto & b) { return a.first > b.first; });
+  std::sort(candidates.begin(), candidates.end(), [](const auto & a, const auto & b) {
+    return a.first > b.first;
+  });
 
   std::vector<int> peaks;
   peaks.reserve(static_cast<size_t>(max_peaks));
@@ -126,12 +123,7 @@ std::vector<int> findProjectionPeaks(
 }
 
 cv::Rect makeVerticalStripRoi(
-  int peak_x,
-  int half_width,
-  int img_cols,
-  int img_rows,
-  int y_top,
-  int y_bottom)
+  int peak_x, int half_width, int img_cols, int img_rows, int y_top, int y_bottom)
 {
   const int x0 = std::max(0, peak_x - half_width);
   const int x1 = std::min(img_cols, peak_x + half_width + 1);
@@ -180,12 +172,10 @@ struct StripLaneBatch
 };
 
 std::vector<VerticalStripRoi> dedupeVerticalStrips(
-  std::vector<VerticalStripRoi> strips,
-  int min_separation_px)
+  std::vector<VerticalStripRoi> strips, int min_separation_px)
 {
   std::sort(
-    strips.begin(), strips.end(),
-    [](const VerticalStripRoi & a, const VerticalStripRoi & b) {
+    strips.begin(), strips.end(), [](const VerticalStripRoi & a, const VerticalStripRoi & b) {
       return a.peak_value > b.peak_value;
     });
 
@@ -203,19 +193,15 @@ std::vector<VerticalStripRoi> dedupeVerticalStrips(
       kept.push_back(strip);
     }
   }
-  std::sort(
-    kept.begin(), kept.end(),
-    [](const VerticalStripRoi & a, const VerticalStripRoi & b) {
-      return a.peak_x < b.peak_x;
-    });
+  std::sort(kept.begin(), kept.end(), [](const VerticalStripRoi & a, const VerticalStripRoi & b) {
+    return a.peak_x < b.peak_x;
+  });
   return kept;
 }
 
 cv::Mat renderProjectionDebug(
-  const cv::Mat & gray,
-  const std::vector<std::vector<float>> & projections,
-  const std::vector<std::vector<int>> & peaks_per_strip,
-  int num_strips)
+  const cv::Mat & gray, const std::vector<std::vector<float>> & projections,
+  const std::vector<std::vector<int>> & peaks_per_strip, int num_strips)
 {
   if (gray.empty() || projections.empty()) {
     return {};
@@ -243,11 +229,7 @@ cv::Mat renderProjectionDebug(
       const int bar_h = static_cast<int>((proj[static_cast<size_t>(x)] / max_val) * (h - 4));
       const int y_base = y0 + h - 2;
       cv::line(
-        debug,
-        cv::Point(x, y_base),
-        cv::Point(x, y_base - bar_h),
-        cv::Scalar(80, 200, 255),
-        1);
+        debug, cv::Point(x, y_base), cv::Point(x, y_base - bar_h), cv::Scalar(80, 200, 255), 1);
     }
 
     for (int px : peaks_per_strip[static_cast<size_t>(s)]) {
@@ -255,12 +237,10 @@ cv::Mat renderProjectionDebug(
     }
 
     cv::line(
-      debug, cv::Point(0, y1 - 1), cv::Point(gray.cols - 1, y1 - 1),
-      cv::Scalar(0, 180, 255), 1);
+      debug, cv::Point(0, y1 - 1), cv::Point(gray.cols - 1, y1 - 1), cv::Scalar(0, 180, 255), 1);
     cv::putText(
-      debug, "S" + std::to_string(s),
-      cv::Point(4, y0 + 14), cv::FONT_HERSHEY_SIMPLEX, 0.4, cv::Scalar(0, 220, 255), 1,
-      cv::LINE_AA);
+      debug, "S" + std::to_string(s), cv::Point(4, y0 + 14), cv::FONT_HERSHEY_SIMPLEX, 0.4,
+      cv::Scalar(0, 220, 255), 1, cv::LINE_AA);
   }
   return debug;
 }
@@ -288,8 +268,7 @@ IntensityStripParams loadIntensityStripParams(rclcpp::Node & node)
 }
 
 IntensityStripDetectionResult detectLanesIntensityStrips(
-  const cv::Mat & bev_bgr,
-  const PipelineParams & detect_params,
+  const cv::Mat & bev_bgr, const PipelineParams & detect_params,
   const IntensityStripParams & strip_params)
 {
   const auto t0 = std::chrono::steady_clock::now();
@@ -315,40 +294,31 @@ IntensityStripDetectionResult detectLanesIntensityStrips(
   result.horizontal_strip_count = num_strips;
   std::vector<StripAnalysis> strip_analyses(static_cast<size_t>(num_strips));
 
-  tbb::parallel_for(
-    0, num_strips,
-    [&](int s) {
-      const int y0 = s * rows / num_strips;
-      const int y1 = (s + 1) * rows / num_strips;
-      const cv::Mat band = gray.rowRange(y0, y1);
+  tbb::parallel_for(0, num_strips, [&](int s) {
+    const int y0 = s * rows / num_strips;
+    const int y1 = (s + 1) * rows / num_strips;
+    const cv::Mat band = gray.rowRange(y0, y1);
 
-      StripAnalysis analysis;
-      analysis.projection = columnProjection(band, strip_params.min_road_gray);
-      smoothProjection(analysis.projection, strip_params.projection_smooth_ksize);
-      analysis.peaks = findProjectionPeaks(
-        analysis.projection,
-        strip_params.min_peak_height_ratio,
-        strip_params.min_peak_separation_px,
-        strip_params.max_peaks_per_strip);
+    StripAnalysis analysis;
+    analysis.projection = columnProjection(band, strip_params.min_road_gray);
+    smoothProjection(analysis.projection, strip_params.projection_smooth_ksize);
+    analysis.peaks = findProjectionPeaks(
+      analysis.projection, strip_params.min_peak_height_ratio, strip_params.min_peak_separation_px,
+      strip_params.max_peaks_per_strip);
 
-      int peak_idx = 0;
-      for (int px : analysis.peaks) {
-        VerticalStripRoi strip;
-        strip.strip_index = s;
-        strip.peak_index = peak_idx++;
-        strip.peak_x = static_cast<double>(px);
-        strip.peak_value = analysis.projection[static_cast<size_t>(px)];
-        strip.roi = makeVerticalStripRoi(
-          px,
-          strip_params.vertical_strip_half_width_px,
-          cols,
-          y_max,
-          0,
-          y_max);
-        analysis.vertical_strips.push_back(strip);
-      }
-      strip_analyses[static_cast<size_t>(s)] = std::move(analysis);
-    });
+    int peak_idx = 0;
+    for (int px : analysis.peaks) {
+      VerticalStripRoi strip;
+      strip.strip_index = s;
+      strip.peak_index = peak_idx++;
+      strip.peak_x = static_cast<double>(px);
+      strip.peak_value = analysis.projection[static_cast<size_t>(px)];
+      strip.roi =
+        makeVerticalStripRoi(px, strip_params.vertical_strip_half_width_px, cols, y_max, 0, y_max);
+      analysis.vertical_strips.push_back(strip);
+    }
+    strip_analyses[static_cast<size_t>(s)] = std::move(analysis);
+  });
 
   std::vector<std::vector<float>> projections(static_cast<size_t>(num_strips));
   std::vector<std::vector<int>> peaks_per_strip(static_cast<size_t>(num_strips));
@@ -356,8 +326,10 @@ IntensityStripDetectionResult detectLanesIntensityStrips(
   vertical_strips.reserve(static_cast<size_t>(num_strips * strip_params.max_peaks_per_strip));
 
   for (int s = 0; s < num_strips; ++s) {
-    projections[static_cast<size_t>(s)] = std::move(strip_analyses[static_cast<size_t>(s)].projection);
-    peaks_per_strip[static_cast<size_t>(s)] = std::move(strip_analyses[static_cast<size_t>(s)].peaks);
+    projections[static_cast<size_t>(s)] =
+      std::move(strip_analyses[static_cast<size_t>(s)].projection);
+    peaks_per_strip[static_cast<size_t>(s)] =
+      std::move(strip_analyses[static_cast<size_t>(s)].peaks);
     for (auto & strip : strip_analyses[static_cast<size_t>(s)].vertical_strips) {
       vertical_strips.push_back(std::move(strip));
     }
@@ -372,8 +344,7 @@ IntensityStripDetectionResult detectLanesIntensityStrips(
   std::vector<StripLaneBatch> lane_batches(num_vertical);
 
   tbb::parallel_for(
-    tbb::blocked_range<size_t>(0, num_vertical),
-    [&](const tbb::blocked_range<size_t> & range) {
+    tbb::blocked_range<size_t>(0, num_vertical), [&](const tbb::blocked_range<size_t> & range) {
       for (size_t i = range.begin(); i != range.end(); ++i) {
         const auto & strip = vertical_strips[i];
         cv::Mat roi_bgr = prep.display_bgr(strip.roi).clone();
@@ -417,8 +388,7 @@ IntensityStripDetectionResult detectLanesIntensityStrips(
 }
 
 cv::Mat drawIntensityStripOverlay(
-  const cv::Mat & bev_bgr,
-  const IntensityStripDetectionResult & result,
+  const cv::Mat & bev_bgr, const IntensityStripDetectionResult & result,
   const IntensityStripParams & strip_params)
 {
   cv::Mat base;
@@ -433,16 +403,16 @@ cv::Mat drawIntensityStripOverlay(
 
   for (int s = 1; s < num_strips; ++s) {
     const int y = s * rows / num_strips;
-    cv::line(base, cv::Point(0, y), cv::Point(base.cols - 1, y), cv::Scalar(255, 220, 0), 1, cv::LINE_AA);
+    cv::line(
+      base, cv::Point(0, y), cv::Point(base.cols - 1, y), cv::Scalar(255, 220, 0), 1, cv::LINE_AA);
   }
 
   for (const auto & strip : result.vertical_strips) {
     cv::rectangle(base, strip.roi, cv::Scalar(0, 220, 255), 1, cv::LINE_AA);
-    const std::string label = "S" + std::to_string(strip.strip_index) +
-      "P" + std::to_string(strip.peak_index);
+    const std::string label =
+      "S" + std::to_string(strip.strip_index) + "P" + std::to_string(strip.peak_index);
     cv::putText(
-      base, label,
-      cv::Point(strip.roi.x + 2, std::max(12, strip.roi.y + 12)),
+      base, label, cv::Point(strip.roi.x + 2, std::max(12, strip.roi.y + 12)),
       cv::FONT_HERSHEY_SIMPLEX, 0.35, cv::Scalar(0, 255, 255), 1, cv::LINE_AA);
   }
 
@@ -452,21 +422,19 @@ cv::Mat drawIntensityStripOverlay(
   banner << "H=" << num_strips << " V=" << result.vertical_strips.size()
          << " lanes=" << result.lanes.size();
   cv::putText(
-    with_lanes, banner.str(),
-    cv::Point(8, 22), cv::FONT_HERSHEY_SIMPLEX, 0.55, cv::Scalar(255, 255, 255), 2, cv::LINE_AA);
+    with_lanes, banner.str(), cv::Point(8, 22), cv::FONT_HERSHEY_SIMPLEX, 0.55,
+    cv::Scalar(255, 255, 255), 2, cv::LINE_AA);
   cv::putText(
-    with_lanes, banner.str(),
-    cv::Point(8, 22), cv::FONT_HERSHEY_SIMPLEX, 0.55, cv::Scalar(40, 40, 200), 1, cv::LINE_AA);
+    with_lanes, banner.str(), cv::Point(8, 22), cv::FONT_HERSHEY_SIMPLEX, 0.55,
+    cv::Scalar(40, 40, 200), 1, cv::LINE_AA);
 
   (void)strip_params;
   return with_lanes;
 }
 
 cv::Mat drawFrontalIntensityStripOverlay(
-  const cv::Mat & frontal_bgr,
-  const IntensityStripDetectionResult & result,
-  const IntensityStripParams & strip_params,
-  const cv::Mat & H_img2bev)
+  const cv::Mat & frontal_bgr, const IntensityStripDetectionResult & result,
+  const IntensityStripParams & strip_params, const cv::Mat & H_img2bev)
 {
   cv::Mat overlay = drawFrontalOverlay(frontal_bgr, result.lanes, result.merges, H_img2bev);
   if (H_img2bev.empty() || H_img2bev.rows != 3 || H_img2bev.cols != 3) {
@@ -500,36 +468,35 @@ cv::Mat drawFrontalIntensityStripOverlay(
   }
 
   auto project = [&](double bx, double by) -> cv::Point2f {
-      const double w =
-        H_bev2img.at<double>(2, 0) * bx +
-        H_bev2img.at<double>(2, 1) * by +
-        H_bev2img.at<double>(2, 2);
-      if (std::abs(w) < 1e-9) {
-        return {-1.f, -1.f};
-      }
-      const double inv_w = 1.0 / w;
-      return cv::Point2f(
-        static_cast<float>(
-          (H_bev2img.at<double>(0, 0) * bx +
-           H_bev2img.at<double>(0, 1) * by +
-           H_bev2img.at<double>(0, 2)) * inv_w),
-        static_cast<float>(
-          (H_bev2img.at<double>(1, 0) * bx +
-           H_bev2img.at<double>(1, 1) * by +
-           H_bev2img.at<double>(1, 2)) * inv_w));
-    };
+    const double w = H_bev2img.at<double>(2, 0) * bx + H_bev2img.at<double>(2, 1) * by +
+                     H_bev2img.at<double>(2, 2);
+    if (std::abs(w) < 1e-9) {
+      return {-1.f, -1.f};
+    }
+    const double inv_w = 1.0 / w;
+    return cv::Point2f(
+      static_cast<float>(
+        (H_bev2img.at<double>(0, 0) * bx + H_bev2img.at<double>(0, 1) * by +
+         H_bev2img.at<double>(0, 2)) *
+        inv_w),
+      static_cast<float>(
+        (H_bev2img.at<double>(1, 0) * bx + H_bev2img.at<double>(1, 1) * by +
+         H_bev2img.at<double>(1, 2)) *
+        inv_w));
+  };
 
-  auto draw_bev_segment = [&](double x0, double y0, double x1, double y1, const cv::Scalar & color) {
-      const cv::Point2f p0f = project(x0, y0);
-      const cv::Point2f p1f = project(x1, y1);
-      const cv::Point p0(static_cast<int>(p0f.x), static_cast<int>(p0f.y));
-      const cv::Point p1(static_cast<int>(p1f.x), static_cast<int>(p1f.y));
-      if (p0.x >= -50 && p0.x < cols + 50 && p0.y >= -50 && p0.y < rows + 50 &&
-        p1.x >= -50 && p1.x < cols + 50 && p1.y >= -50 && p1.y < rows + 50)
-      {
-        cv::line(overlay, p0, p1, color, 1, cv::LINE_AA);
-      }
-    };
+  auto draw_bev_segment = [&](
+                            double x0, double y0, double x1, double y1, const cv::Scalar & color) {
+    const cv::Point2f p0f = project(x0, y0);
+    const cv::Point2f p1f = project(x1, y1);
+    const cv::Point p0(static_cast<int>(p0f.x), static_cast<int>(p0f.y));
+    const cv::Point p1(static_cast<int>(p1f.x), static_cast<int>(p1f.y));
+    if (
+      p0.x >= -50 && p0.x < cols + 50 && p0.y >= -50 && p0.y < rows + 50 && p1.x >= -50 &&
+      p1.x < cols + 50 && p1.y >= -50 && p1.y < rows + 50) {
+      cv::line(overlay, p0, p1, color, 1, cv::LINE_AA);
+    }
+  };
 
   for (int s = 1; s < num_strips; ++s) {
     const double y = static_cast<double>(s * bev_height / num_strips);
@@ -552,11 +519,11 @@ cv::Mat drawFrontalIntensityStripOverlay(
   banner << "H=" << num_strips << " V=" << result.vertical_strips.size()
          << " lanes=" << result.lanes.size();
   cv::putText(
-    overlay, banner.str(),
-    cv::Point(8, 22), cv::FONT_HERSHEY_SIMPLEX, 0.55, cv::Scalar(255, 255, 255), 2, cv::LINE_AA);
+    overlay, banner.str(), cv::Point(8, 22), cv::FONT_HERSHEY_SIMPLEX, 0.55,
+    cv::Scalar(255, 255, 255), 2, cv::LINE_AA);
   cv::putText(
-    overlay, banner.str(),
-    cv::Point(8, 22), cv::FONT_HERSHEY_SIMPLEX, 0.55, cv::Scalar(40, 40, 200), 1, cv::LINE_AA);
+    overlay, banner.str(), cv::Point(8, 22), cv::FONT_HERSHEY_SIMPLEX, 0.55,
+    cv::Scalar(40, 40, 200), 1, cv::LINE_AA);
 
   (void)strip_params;
   return overlay;

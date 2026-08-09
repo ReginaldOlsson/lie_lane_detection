@@ -1,14 +1,14 @@
 #include "lie_lane_detection/pipeline/detection_common.hpp"
 
-#include <algorithm>
-
-#include <opencv2/imgproc.hpp>
-
-#include "lie_lane_detection/fitting/manifold_ransac.hpp"
 #include "lie_lane_detection/common/parallel.hpp"
+#include "lie_lane_detection/fitting/manifold_ransac.hpp"
 #include "lie_lane_detection/geometry/template_curve.hpp"
 #include "lie_lane_detection/preprocessing/edge_extractor.hpp"
 #include "lie_lane_detection/preprocessing/ipm_transformer.hpp"
+
+#include <opencv2/imgproc.hpp>
+
+#include <algorithm>
 
 namespace lie_lane_detection
 {
@@ -17,14 +17,11 @@ bool isBorderLane(const LaneHypothesis & lane, const PipelineParams & params)
 {
   const double span = params.se2_vx_max - params.se2_vx_min;
   const double margin = span * params.edge_border_margin_ratio;
-  return lane.xi[0] < params.se2_vx_min + margin ||
-         lane.xi[0] > params.se2_vx_max - margin;
+  return lane.xi[0] < params.se2_vx_min + margin || lane.xi[0] > params.se2_vx_max - margin;
 }
 
 bool isTooCloseToExisting(
-  const LaneHypothesis & lane,
-  const std::vector<LaneHypothesis> & existing,
-  double min_sep_px)
+  const LaneHypothesis & lane, const std::vector<LaneHypothesis> & existing, double min_sep_px)
 {
   for (const auto & other : existing) {
     if (std::abs(lane.xi[0] - other.xi[0]) < min_sep_px) {
@@ -62,9 +59,7 @@ bool edgeGradientSupportsVerticalLane(double edge_orientation, double max_dev_ra
 }
 
 double laneOrientationSupportRatio(
-  const LaneHypothesis & lane,
-  const PipelineParams & params,
-  const TemplateCurve * template_curve)
+  const LaneHypothesis & lane, const PipelineParams & params, const TemplateCurve * template_curve)
 {
   if (lane.supporting_edges.empty()) {
     return 0.0;
@@ -78,7 +73,7 @@ double laneOrientationSupportRatio(
       const Vec2 tan = template_curve->tangentAt(lane.xi, t_near);
       const double tangent_angle = std::atan2(tan.y(), tan.x());
       if (edgeGradientAlignsWithTangent(
-          edgeOrientationRad(e.orientation), tangent_angle, max_dev)) {
+            edgeOrientationRad(e.orientation), tangent_angle, max_dev)) {
         ++aligned;
       }
     } else if (edgeGradientSupportsVerticalLane(e.orientation, max_dev)) {
@@ -89,9 +84,7 @@ double laneOrientationSupportRatio(
 }
 
 bool passesInlierContinuity(
-  const std::vector<EdgePoint> & edges,
-  double max_gap_px,
-  double max_gap_ratio)
+  const std::vector<EdgePoint> & edges, double max_gap_px, double max_gap_ratio)
 {
   if (edges.size() < 4) {
     return true;
@@ -116,9 +109,7 @@ bool passesInlierContinuity(
 }  // namespace
 
 bool passesQualityGate(
-  const LaneHypothesis & lane,
-  const PipelineParams & params,
-  double image_height,
+  const LaneHypothesis & lane, const PipelineParams & params, double image_height,
   const TemplateCurve * template_curve)
 {
   if (lane.inlier_ratio < params.min_inlier_ratio) {
@@ -130,9 +121,9 @@ bool passesQualityGate(
   if (isBorderLane(lane, params)) {
     return false;
   }
-  if (std::abs(lane.xi[3]) > params.max_lane_curvature_abs ||
-    std::abs(lane.xi[4]) > params.max_lane_sigma_abs)
-  {
+  if (
+    std::abs(lane.xi[3]) > params.max_lane_curvature_abs ||
+    std::abs(lane.xi[4]) > params.max_lane_sigma_abs) {
     return false;
   }
 
@@ -148,31 +139,29 @@ bool passesQualityGate(
     if (coverage < params.min_inlier_y_coverage) {
       return false;
     }
-    const double min_span_px = params.min_lane_inlier_y_span_px > 0.0 ?
-      params.min_lane_inlier_y_span_px :
-      params.min_inlier_y_coverage * image_height;
+    const double min_span_px = params.min_lane_inlier_y_span_px > 0.0
+                                 ? params.min_lane_inlier_y_span_px
+                                 : params.min_inlier_y_coverage * image_height;
     if (span < min_span_px) {
       return false;
     }
     if (!passesInlierContinuity(
-        lane.supporting_edges, params.max_lane_inlier_gap_px, params.max_lane_inlier_gap_ratio))
-    {
+          lane.supporting_edges, params.max_lane_inlier_gap_px, params.max_lane_inlier_gap_ratio)) {
       return false;
     }
   }
 
-  if (params.use_lane_edge_orientation_gate &&
+  if (
+    params.use_lane_edge_orientation_gate &&
     laneOrientationSupportRatio(lane, params, template_curve) <
-    params.min_lane_edge_orientation_ratio)
-  {
+      params.min_lane_edge_orientation_ratio) {
     return false;
   }
   return true;
 }
 
 std::vector<EdgePoint> filterLaneOrientedEdges(
-  const std::vector<EdgePoint> & edges,
-  const PipelineParams & params)
+  const std::vector<EdgePoint> & edges, const PipelineParams & params)
 {
   if (!params.use_lane_edge_orientation_gate || edges.empty()) {
     return edges;
@@ -189,8 +178,7 @@ std::vector<EdgePoint> filterLaneOrientedEdges(
 }
 
 std::vector<LaneHypothesis> pruneNoiseLaneHypotheses(
-  std::vector<LaneHypothesis> lanes,
-  const PipelineParams & params)
+  std::vector<LaneHypothesis> lanes, const PipelineParams & params)
 {
   if (lanes.empty()) {
     return lanes;
@@ -205,7 +193,7 @@ std::vector<LaneHypothesis> pruneNoiseLaneHypotheses(
     lanes.erase(
       std::remove_if(
         lanes.begin(), lanes.end(),
-        [min_score](const LaneHypothesis & lane) {return lane.score < min_score;}),
+        [min_score](const LaneHypothesis & lane) { return lane.score < min_score; }),
       lanes.end());
   }
 
@@ -226,12 +214,10 @@ std::vector<LaneHypothesis> pruneNoiseLaneHypotheses(
       lanes.end());
   }
 
-  if (params.max_output_lanes > 0 &&
-    static_cast<int>(lanes.size()) > params.max_output_lanes)
-  {
+  if (params.max_output_lanes > 0 && static_cast<int>(lanes.size()) > params.max_output_lanes) {
     std::sort(lanes.begin(), lanes.end(), [](const LaneHypothesis & a, const LaneHypothesis & b) {
-        return a.score > b.score;
-      });
+      return a.score > b.score;
+    });
     lanes.resize(static_cast<size_t>(params.max_output_lanes));
   }
   return lanes;
@@ -287,9 +273,7 @@ cv::Mat prepareBevForDetection(const cv::Mat & bev_bgr, const PipelineParams & p
 }
 
 cv::Mat filterBevEdgeArtifacts(
-  const cv::Mat & edges_gray,
-  const cv::Mat & bev_bgr,
-  const PipelineParams & params,
+  const cv::Mat & edges_gray, const cv::Mat & bev_bgr, const PipelineParams & params,
   const cv::Mat & H_img2bev)
 {
   if (edges_gray.empty()) {
@@ -338,9 +322,7 @@ cv::Mat filterBevEdgeArtifacts(
   return filtered;
 }
 
-BevTrackingPrep prepareBevGrayForTracking(
-  const cv::Mat & bev_bgr,
-  const PipelineParams & params)
+BevTrackingPrep prepareBevGrayForTracking(const cv::Mat & bev_bgr, const PipelineParams & params)
 {
   BevTrackingPrep out;
   if (bev_bgr.empty()) {
@@ -363,8 +345,7 @@ BevTrackingPrep prepareBevGrayForTracking(
 }
 
 BevPreprocessResult preprocessBevForLaneDetection(
-  const cv::Mat & bev_bgr,
-  const PipelineParams & params)
+  const cv::Mat & bev_bgr, const PipelineParams & params)
 {
   BevPreprocessResult out;
   if (bev_bgr.empty()) {
@@ -380,10 +361,8 @@ BevPreprocessResult preprocessBevForLaneDetection(
 
   cv::Mat work = out.display_bgr.clone();
   if (params.bev_use_sharpen) {
-    const cv::Mat kernel = (cv::Mat_<float>(3, 3) <<
-      -1.f, -1.f, -1.f,
-      -1.f,  9.f, -1.f,
-      -1.f, -1.f, -1.f);
+    const cv::Mat kernel =
+      (cv::Mat_<float>(3, 3) << -1.f, -1.f, -1.f, -1.f, 9.f, -1.f, -1.f, -1.f, -1.f);
     cv::filter2D(work, work, -1, kernel);
   }
 
@@ -428,9 +407,7 @@ BevPreprocessResult preprocessBevForLaneDetection(
 }
 
 std::vector<EdgePoint> filterBorderEdges(
-  const std::vector<EdgePoint> & edges,
-  double x_min,
-  double x_max)
+  const std::vector<EdgePoint> & edges, double x_min, double x_max)
 {
   std::vector<EdgePoint> filtered;
   filtered.reserve(edges.size());
@@ -442,9 +419,7 @@ std::vector<EdgePoint> filterBorderEdges(
   return filtered;
 }
 
-std::vector<EdgePoint> filterBevYMaxEdges(
-  const std::vector<EdgePoint> & edges,
-  double y_max)
+std::vector<EdgePoint> filterBevYMaxEdges(const std::vector<EdgePoint> & edges, double y_max)
 {
   std::vector<EdgePoint> filtered;
   filtered.reserve(edges.size());
@@ -457,9 +432,7 @@ std::vector<EdgePoint> filterBevYMaxEdges(
 }
 
 std::vector<EdgePoint> peelEdgesNearCurve(
-  const std::vector<EdgePoint> & edges,
-  const TemplateCurve & curve,
-  const XiVector & xi,
+  const std::vector<EdgePoint> & edges, const TemplateCurve & curve, const XiVector & xi,
   double margin_px)
 {
   std::vector<EdgePoint> remaining;
@@ -488,9 +461,7 @@ std::vector<EdgePoint> subsampleEdges(const std::vector<EdgePoint> & edges, size
 }
 
 std::vector<LineSegment> filterBorderLines(
-  const std::vector<LineSegment> & lines,
-  double x_min,
-  double x_max)
+  const std::vector<LineSegment> & lines, double x_min, double x_max)
 {
   std::vector<LineSegment> filtered;
   filtered.reserve(lines.size());
@@ -502,9 +473,7 @@ std::vector<LineSegment> filterBorderLines(
   return filtered;
 }
 
-std::vector<LineSegment> filterBevYMaxLines(
-  const std::vector<LineSegment> & lines,
-  double y_max)
+std::vector<LineSegment> filterBevYMaxLines(const std::vector<LineSegment> & lines, double y_max)
 {
   std::vector<LineSegment> filtered;
   filtered.reserve(lines.size());
@@ -517,9 +486,7 @@ std::vector<LineSegment> filterBevYMaxLines(
 }
 
 std::vector<LineSegment> peelLinesNearCurve(
-  const std::vector<LineSegment> & lines,
-  const TemplateCurve & curve,
-  const XiVector & xi,
+  const std::vector<LineSegment> & lines, const TemplateCurve & curve, const XiVector & xi,
   double margin_px)
 {
   std::vector<LineSegment> remaining;
@@ -539,13 +506,13 @@ std::vector<EdgePoint> linesToRefineEdges(const std::vector<LineSegment> & lines
   edges.reserve(lines.size() * 3);
   for (const auto & line : lines) {
     auto add = [&](double x, double y) {
-        EdgePoint ep;
-        ep.x = x;
-        ep.y = y;
-        ep.magnitude = line.length;
-        ep.orientation = line.angle;
-        edges.push_back(ep);
-      };
+      EdgePoint ep;
+      ep.x = x;
+      ep.y = y;
+      ep.magnitude = line.length;
+      ep.orientation = line.angle;
+      edges.push_back(ep);
+    };
     add(line.mx, line.my);
     if (line.length > 25.0) {
       add(line.x1, line.y1);
@@ -556,13 +523,9 @@ std::vector<EdgePoint> linesToRefineEdges(const std::vector<LineSegment> & lines
 }
 
 LaneHypothesis pickBestSeed(
-  const std::vector<LaneHypothesis> & seeds,
-  const std::vector<EdgePoint> & edges,
-  ManifoldRansac & ransac,
-  const std::vector<LaneHypothesis> & accepted,
-  const PipelineParams & params,
-  double image_height,
-  const TemplateCurve * template_curve)
+  const std::vector<LaneHypothesis> & seeds, const std::vector<EdgePoint> & edges,
+  ManifoldRansac & ransac, const std::vector<LaneHypothesis> & accepted,
+  const PipelineParams & params, double image_height, const TemplateCurve * template_curve)
 {
   // Rank all seeds cheaply with the raw RANSAC consensus (no Ceres), then pay
   // for the expensive non-linear refinement on the single winner only. Fitting
@@ -570,8 +533,7 @@ LaneHypothesis pickBestSeed(
   // immediately discarded.
   std::vector<LaneHypothesis> fitted(seeds.size());
   tbb::parallel_for(
-    tbb::blocked_range<size_t>(0, seeds.size()),
-    [&](const tbb::blocked_range<size_t> & range) {
+    tbb::blocked_range<size_t>(0, seeds.size()), [&](const tbb::blocked_range<size_t> & range) {
       for (size_t i = range.begin(); i != range.end(); ++i) {
         fitted[i] = ransac.fit(seeds[i], edges, /*refine=*/false);
       }
@@ -600,9 +562,9 @@ LaneHypothesis pickBestSeed(
 
   // Full refinement on the winning seed, then re-validate.
   LaneHypothesis best = ransac.fit(seeds[static_cast<size_t>(best_idx)], edges, /*refine=*/true);
-  if (!passesQualityGate(best, params, image_height, template_curve) ||
-    isTooCloseToExisting(best, accepted, params.min_lane_separation_px))
-  {
+  if (
+    !passesQualityGate(best, params, image_height, template_curve) ||
+    isTooCloseToExisting(best, accepted, params.min_lane_separation_px)) {
     return LaneHypothesis{};
   }
   best.score = best.score * best.inlier_ratio;

@@ -3,16 +3,16 @@
 // Usage:
 //   test_bev_mosaic_align --prev first.png --curr second.png --output /tmp/bev_align
 
+#include "lie_lane_detection/mosaic/bev_orb_matcher.hpp"
+#include "lie_lane_detection/mosaic/bev_registration.hpp"
+
+#include <opencv2/imgcodecs.hpp>
+
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <string>
-
-#include <opencv2/imgcodecs.hpp>
-
-#include "lie_lane_detection/mosaic/bev_registration.hpp"
-#include "lie_lane_detection/mosaic/bev_orb_matcher.hpp"
 
 namespace fs = std::filesystem;
 
@@ -53,8 +53,8 @@ int main(int argc, char ** argv)
     } else if (arg == "--method" && i + 1 < argc) {
       method = argv[++i];
     } else if (arg == "--help" || arg == "-h") {
-      std::cout <<
-        "Usage: test_bev_mosaic_align --prev PATH --curr PATH [--output DIR] [--method orb|ecc|orb_then_ecc|ecc_then_orb]\n";
+      std::cout << "Usage: test_bev_mosaic_align --prev PATH --curr PATH [--output DIR] [--method "
+                   "orb|ecc|orb_then_ecc|ecc_then_orb]\n";
       return 0;
     }
   }
@@ -71,8 +71,8 @@ int main(int argc, char ** argv)
     return 1;
   }
   if (prev.size() != curr.size()) {
-    std::cerr << "Image sizes differ: prev " << prev.cols << "x" << prev.rows
-              << " curr " << curr.cols << "x" << curr.rows << "\n";
+    std::cerr << "Image sizes differ: prev " << prev.cols << "x" << prev.rows << " curr "
+              << curr.cols << "x" << curr.rows << "\n";
     return 1;
   }
 
@@ -109,11 +109,8 @@ int main(int argc, char ** argv)
   report.close();
 
   std::cout << "Alignment report written to " << (output_dir / "alignment_report.txt") << "\n";
-  std::cout << "  valid=" << reg.valid
-            << " method=" << reg.method_used
-            << " corr=" << reg.correlation
-            << " dx=" << reg.dx_px
-            << " dy=" << reg.dy_px
+  std::cout << "  valid=" << reg.valid << " method=" << reg.method_used
+            << " corr=" << reg.correlation << " dx=" << reg.dx_px << " dy=" << reg.dy_px
             << " yaw_deg=" << (reg.yaw_rad * 180.0 / CV_PI) << "\n";
   std::cout << "Debug images in " << output_dir << "\n";
   return reg.valid ? 0 : 2;

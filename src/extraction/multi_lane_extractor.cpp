@@ -6,8 +6,7 @@
 namespace lie_lane_detection
 {
 
-MultiLaneExtractor::MultiLaneExtractor(const PipelineParams & params)
-: params_(params)
+MultiLaneExtractor::MultiLaneExtractor(const PipelineParams & params) : params_(params)
 {
 }
 
@@ -18,8 +17,8 @@ void MultiLaneExtractor::assignRoles(std::vector<LaneHypothesis> & lanes) const
   }
 
   std::sort(lanes.begin(), lanes.end(), [](const LaneHypothesis & a, const LaneHypothesis & b) {
-      return a.xi[0] < b.xi[0];
-    });
+    return a.xi[0] < b.xi[0];
+  });
 
   const int n = static_cast<int>(lanes.size());
   for (int i = 0; i < n; ++i) {
@@ -84,18 +83,19 @@ std::vector<LaneHypothesis> MultiLaneExtractor::limitOutputLanes(
   }
 
   std::sort(lanes.begin(), lanes.end(), [](const LaneHypothesis & a, const LaneHypothesis & b) {
-      return a.score > b.score;
-    });
+    return a.score > b.score;
+  });
   lanes.resize(static_cast<size_t>(cap));
   assignRoles(lanes);
   return lanes;
 }
 
-std::vector<LaneHypothesis> MultiLaneExtractor::extract(std::vector<LaneHypothesis> candidates) const
+std::vector<LaneHypothesis> MultiLaneExtractor::extract(
+  std::vector<LaneHypothesis> candidates) const
 {
-  std::sort(candidates.begin(), candidates.end(), [](const LaneHypothesis & a, const LaneHypothesis & b) {
-      return a.score > b.score;
-    });
+  std::sort(
+    candidates.begin(), candidates.end(),
+    [](const LaneHypothesis & a, const LaneHypothesis & b) { return a.score > b.score; });
 
   std::vector<LaneHypothesis> kept;
   for (auto & cand : candidates) {
@@ -132,7 +132,8 @@ std::vector<LaneHypothesis> MultiLaneExtractor::extract(std::vector<LaneHypothes
         }
       }
       const double ratio = static_cast<double>(shared) /
-        static_cast<double>(std::max(existing.supporting_edges.size(), cand.supporting_edges.size()));
+                           static_cast<double>(std::max(
+                             existing.supporting_edges.size(), cand.supporting_edges.size()));
       if (ratio > params_.inlier_dedup_ratio) {
         duplicate = true;
         break;

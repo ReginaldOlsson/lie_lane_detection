@@ -47,11 +47,7 @@ int LineKDTree::buildRecursive(int begin, int end, int depth)
 }
 
 void LineKDTree::queryRecursive(
-  int node,
-  double qx,
-  double qy,
-  double radius_sq,
-  std::vector<size_t> & out) const
+  int node, double qx, double qy, double radius_sq, std::vector<size_t> & out) const
 {
   if (node < 0 || node >= static_cast<int>(nodes_.size())) {
     return;

@@ -1,14 +1,13 @@
 #include "lie_lane_detection/voting/line_hough_extractor.hpp"
 
-#include <cmath>
-
 #include <opencv2/imgproc.hpp>
+
+#include <cmath>
 
 namespace lie_lane_detection
 {
 
-LineHoughExtractor::LineHoughExtractor(const PipelineParams & params)
-: params_(params)
+LineHoughExtractor::LineHoughExtractor(const PipelineParams & params) : params_(params)
 {
 }
 
@@ -26,12 +25,7 @@ std::vector<LineSegment> LineHoughExtractor::extract(const cv::Mat & edge_image)
 
   std::vector<cv::Vec4i> lines;
   cv::HoughLinesP(
-    edges,
-    lines,
-    1.0,
-    CV_PI / 180.0,
-    params_.line_hough_threshold,
-    params_.line_min_length_px,
+    edges, lines, 1.0, CV_PI / 180.0, params_.line_hough_threshold, params_.line_min_length_px,
     params_.line_max_gap_px);
 
   segments.reserve(lines.size());
@@ -61,15 +55,15 @@ std::vector<LineSegment> LineHoughExtractor::extract(const cv::Mat & edge_image)
   return segments;
 }
 
-cv::Mat LineHoughExtractor::drawSegments(const cv::Mat & bev_bgr, const std::vector<LineSegment> & lines)
+cv::Mat LineHoughExtractor::drawSegments(
+  const cv::Mat & bev_bgr, const std::vector<LineSegment> & lines)
 {
   cv::Mat out = bev_bgr.clone();
   for (const auto & line : lines) {
     cv::line(
-      out,
-      cv::Point(static_cast<int>(line.x1), static_cast<int>(line.y1)),
-      cv::Point(static_cast<int>(line.x2), static_cast<int>(line.y2)),
-      cv::Scalar(0, 255, 255), 1, cv::LINE_AA);
+      out, cv::Point(static_cast<int>(line.x1), static_cast<int>(line.y1)),
+      cv::Point(static_cast<int>(line.x2), static_cast<int>(line.y2)), cv::Scalar(0, 255, 255), 1,
+      cv::LINE_AA);
   }
   return out;
 }

@@ -1,9 +1,9 @@
-#include <gtest/gtest.h>
+#include "lie_lane_detection/motion/ego_motion_estimator.hpp"
 
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 
-#include "lie_lane_detection/motion/ego_motion_estimator.hpp"
+#include <gtest/gtest.h>
 
 TEST(EgoMotionEstimator, firstFrameInvalid)
 {

@@ -5,6 +5,12 @@
 //   compare_lane_detection --image PATH [--output DIR] [--perspective]
 //   compare_lane_detection --real-dataset DIR [--output DIR]
 
+#include "lie_lane_detection/core/types.hpp"
+#include "lie_lane_detection/pipeline/lane_detection_runner.hpp"
+#include "lie_lane_detection/pipeline/line_lane_detection_runner.hpp"
+
+#include <opencv2/imgcodecs.hpp>
+
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
@@ -16,12 +22,6 @@
 #include <sstream>
 #include <string>
 #include <vector>
-
-#include <opencv2/imgcodecs.hpp>
-
-#include "lie_lane_detection/core/types.hpp"
-#include "lie_lane_detection/pipeline/lane_detection_runner.hpp"
-#include "lie_lane_detection/pipeline/line_lane_detection_runner.hpp"
 
 namespace fs = std::filesystem;
 
@@ -87,8 +87,7 @@ static std::vector<lie_lane_detection::XiVector> loadGroundTruth(const fs::path 
 
 static EvalMetrics evaluateAgainstGt(
   const std::vector<lie_lane_detection::XiVector> & gt,
-  const std::vector<lie_lane_detection::LaneHypothesis> & lanes,
-  std::ostream * detail = nullptr)
+  const std::vector<lie_lane_detection::LaneHypothesis> & lanes, std::ostream * detail = nullptr)
 {
   EvalMetrics m;
   m.gt_count = static_cast<int>(gt.size());
@@ -131,8 +130,7 @@ static EvalMetrics evaluateAgainstGt(
 
     if (detail) {
       *detail << "  match gt[" << best_j << "] dvx=" << (lane.xi[0] - g[0])
-              << " dw=" << (lane.xi[2] - g[2])
-              << " dk=" << (lane.xi[3] - g[3]) << "\n";
+              << " dw=" << (lane.xi[2] - g[2]) << " dk=" << (lane.xi[3] - g[3]) << "\n";
     }
   }
 
@@ -148,24 +146,18 @@ static std::string laneSummary(const std::vector<lie_lane_detection::LaneHypothe
 {
   std::ostringstream oss;
   for (const auto & lane : lanes) {
-    oss << "  lane" << lane.lane_id
-        << " vx=" << std::fixed << std::setprecision(1) << lane.xi[0]
-        << " w=" << std::setprecision(3) << lane.xi[2]
-        << " k=" << lane.xi[3]
+    oss << "  lane" << lane.lane_id << " vx=" << std::fixed << std::setprecision(1) << lane.xi[0]
+        << " w=" << std::setprecision(3) << lane.xi[2] << " k=" << lane.xi[3]
         << " inl=" << std::setprecision(2) << lane.inlier_ratio << "\n";
   }
   return oss.str();
 }
 
 static void compareOnImage(
-  const cv::Mat & bev,
-  const fs::path & out_dir,
-  const std::string & label,
-  lie_lane_detection::PipelineParams params,
-  const std::vector<lie_lane_detection::XiVector> & gt,
+  const cv::Mat & bev, const fs::path & out_dir, const std::string & label,
+  lie_lane_detection::PipelineParams params, const std::vector<lie_lane_detection::XiVector> & gt,
   lie_lane_detection::BevDetectionResult * edge_out = nullptr,
-  lie_lane_detection::BevDetectionResult * line_out = nullptr,
-  EvalMetrics * edge_eval = nullptr,
+  lie_lane_detection::BevDetectionResult * line_out = nullptr, EvalMetrics * edge_eval = nullptr,
   EvalMetrics * line_eval = nullptr)
 {
   fs::create_directories(out_dir);
@@ -204,8 +196,8 @@ static void compareOnImage(
       *edge_eval = em;
     }
     report << "  recall: " << em.matched << "/" << em.gt_count
-           << "  mean|omega|=" << em.mean_omega_err
-           << "  mean|kappa|=" << em.mean_kappa_err << "\n";
+           << "  mean|omega|=" << em.mean_omega_err << "  mean|kappa|=" << em.mean_kappa_err
+           << "\n";
   }
   report << "\n";
 
@@ -224,8 +216,8 @@ static void compareOnImage(
       *line_eval = lm;
     }
     report << "  recall: " << lm.matched << "/" << lm.gt_count
-           << "  mean|omega|=" << lm.mean_omega_err
-           << "  mean|kappa|=" << lm.mean_kappa_err << "\n";
+           << "  mean|omega|=" << lm.mean_omega_err << "  mean|kappa|=" << lm.mean_kappa_err
+           << "\n";
   }
   report << "\n";
 
@@ -233,13 +225,12 @@ static void compareOnImage(
   report << "=== Summary ===\n";
   report << "Latency ratio (edge/line): " << speedup << "x\n";
   report << "Lane count delta (line - edge): "
-         << static_cast<int>(line_result.lanes.size()) -
-            static_cast<int>(edge_result.lanes.size()) << "\n";
+         << static_cast<int>(line_result.lanes.size()) - static_cast<int>(edge_result.lanes.size())
+         << "\n";
 
-  std::cout << label << ": edge " << edge_result.lanes.size() << " lanes / "
-            << std::fixed << std::setprecision(0) << edge_result.elapsed_ms << " ms | line "
-            << line_result.lanes.size() << " lanes / "
-            << line_result.elapsed_ms << " ms ("
+  std::cout << label << ": edge " << edge_result.lanes.size() << " lanes / " << std::fixed
+            << std::setprecision(0) << edge_result.elapsed_ms << " ms | line "
+            << line_result.lanes.size() << " lanes / " << line_result.elapsed_ms << " ms ("
             << line_result.line_segment_count << " segments)";
   if (!gt.empty() && edge_eval && line_eval) {
     std::cout << " | recall E:" << edge_eval->matched << "/" << edge_eval->gt_count
@@ -259,15 +250,13 @@ static void findSceneImages(const fs::path & root, std::vector<fs::path> & scene
     if (!entry.is_directory()) {
       continue;
     }
-    if (entry.path().filename() == "comparison" ||
-      entry.path().filename() == "real_dataset")
-    {
+    if (entry.path().filename() == "comparison" || entry.path().filename() == "real_dataset") {
       continue;
     }
     for (const auto & file : fs::directory_iterator(entry.path())) {
-      if (file.path().extension() == ".png" &&
-        file.path().stem().string() == entry.path().filename().string())
-      {
+      if (
+        file.path().extension() == ".png" &&
+        file.path().stem().string() == entry.path().filename().string()) {
         scenes.push_back(file.path());
         break;
       }
@@ -294,11 +283,8 @@ static void findJpegImages(const fs::path & root, std::vector<fs::path> & images
 }
 
 static cv::Mat loadBevImage(
-  const cv::Mat & raw,
-  bool perspective,
-  lie_lane_detection::PipelineParams & params,
-  const fs::path & out_dir,
-  const std::string & label)
+  const cv::Mat & raw, bool perspective, lie_lane_detection::PipelineParams & params,
+  const fs::path & out_dir, const std::string & label)
 {
   if (!perspective) {
     return lie_lane_detection::prepareBevImage(raw);
@@ -336,11 +322,10 @@ int main(int argc, char ** argv)
     } else if (arg == "--perspective") {
       perspective = true;
     } else if (arg == "--help" || arg == "-h") {
-      std::cout <<
-        "Usage:\n"
-        "  compare_lane_detection --scenes DIR [--output DIR]\n"
-        "  compare_lane_detection --image PATH [--output DIR] [--perspective]\n"
-        "  compare_lane_detection --real-dataset DIR [--output DIR]\n";
+      std::cout << "Usage:\n"
+                   "  compare_lane_detection --scenes DIR [--output DIR]\n"
+                   "  compare_lane_detection --image PATH [--output DIR] [--perspective]\n"
+                   "  compare_lane_detection --real-dataset DIR [--output DIR]\n";
       return 0;
     }
   }
@@ -375,13 +360,9 @@ int main(int argc, char ** argv)
 
     std::ofstream summary(output_dir / "real_summary.txt");
     summary << "Real dataset comparison (perspective IPM, no GT)\n\n";
-    summary << std::left
-            << std::setw(30) << "Image"
-            << std::setw(8) << "E_lanes"
-            << std::setw(8) << "L_lanes"
-            << std::setw(10) << "E_ms"
-            << std::setw(10) << "L_ms"
-            << std::setw(8) << "Lines"
+    summary << std::left << std::setw(30) << "Image" << std::setw(8) << "E_lanes" << std::setw(8)
+            << "L_lanes" << std::setw(10) << "E_ms" << std::setw(10) << "L_ms" << std::setw(8)
+            << "Lines"
             << "\n";
 
     double total_edge_ms = 0.0;
@@ -402,14 +383,10 @@ int main(int argc, char ** argv)
       lie_lane_detection::BevDetectionResult line_result;
       compareOnImage(bev, scene_out, label, img_params, {}, &edge_result, &line_result);
 
-      summary << std::left
-              << std::setw(30) << label
-              << std::setw(8) << edge_result.lanes.size()
-              << std::setw(8) << line_result.lanes.size()
-              << std::setw(10) << std::fixed << std::setprecision(1) << edge_result.elapsed_ms
-              << std::setw(10) << line_result.elapsed_ms
-              << std::setw(8) << line_result.line_segment_count
-              << "\n";
+      summary << std::left << std::setw(30) << label << std::setw(8) << edge_result.lanes.size()
+              << std::setw(8) << line_result.lanes.size() << std::setw(10) << std::fixed
+              << std::setprecision(1) << edge_result.elapsed_ms << std::setw(10)
+              << line_result.elapsed_ms << std::setw(8) << line_result.line_segment_count << "\n";
       total_edge_ms += edge_result.elapsed_ms;
       total_line_ms += line_result.elapsed_ms;
     }
@@ -435,17 +412,10 @@ int main(int argc, char ** argv)
   std::ofstream summary(output_dir / "summary.txt");
   summary << "Edge vs Line-first pipeline comparison\n";
   summary << "Scenes: " << scenes.size() << "\n\n";
-  summary << std::left
-          << std::setw(28) << "Scene"
-          << std::setw(8) << "E_lanes"
-          << std::setw(8) << "L_lanes"
-          << std::setw(10) << "E_ms"
-          << std::setw(10) << "L_ms"
-          << std::setw(8) << "Lines"
-          << std::setw(10) << "E_recall"
-          << std::setw(10) << "L_recall"
-          << std::setw(8) << "E_|w|"
-          << std::setw(8) << "L_|w|"
+  summary << std::left << std::setw(28) << "Scene" << std::setw(8) << "E_lanes" << std::setw(8)
+          << "L_lanes" << std::setw(10) << "E_ms" << std::setw(10) << "L_ms" << std::setw(8)
+          << "Lines" << std::setw(10) << "E_recall" << std::setw(10) << "L_recall" << std::setw(8)
+          << "E_|w|" << std::setw(8) << "L_|w|"
           << "\n";
 
   double total_edge_ms = 0.0;
@@ -466,22 +436,20 @@ int main(int argc, char ** argv)
     EvalMetrics edge_eval;
     EvalMetrics line_eval;
     compareOnImage(
-      bev, scene_out, label, params, gt,
-      &edge_result, &line_result, &edge_eval, &line_eval);
+      bev, scene_out, label, params, gt, &edge_result, &line_result, &edge_eval, &line_eval);
 
-    summary << std::left
-            << std::setw(28) << label
-            << std::setw(8) << edge_result.lanes.size()
-            << std::setw(8) << line_result.lanes.size()
-            << std::setw(10) << std::fixed << std::setprecision(1) << edge_result.elapsed_ms
-            << std::setw(10) << line_result.elapsed_ms
-            << std::setw(8) << line_result.line_segment_count;
+    summary << std::left << std::setw(28) << label << std::setw(8) << edge_result.lanes.size()
+            << std::setw(8) << line_result.lanes.size() << std::setw(10) << std::fixed
+            << std::setprecision(1) << edge_result.elapsed_ms << std::setw(10)
+            << line_result.elapsed_ms << std::setw(8) << line_result.line_segment_count;
 
     if (!gt.empty()) {
-      summary << std::setw(10) << (std::to_string(edge_eval.matched) + "/" + std::to_string(edge_eval.gt_count))
-              << std::setw(10) << (std::to_string(line_eval.matched) + "/" + std::to_string(line_eval.gt_count))
-              << std::setw(8) << std::setprecision(3) << edge_eval.mean_omega_err
-              << std::setw(8) << line_eval.mean_omega_err;
+      summary << std::setw(10)
+              << (std::to_string(edge_eval.matched) + "/" + std::to_string(edge_eval.gt_count))
+              << std::setw(10)
+              << (std::to_string(line_eval.matched) + "/" + std::to_string(line_eval.gt_count))
+              << std::setw(8) << std::setprecision(3) << edge_eval.mean_omega_err << std::setw(8)
+              << line_eval.mean_omega_err;
     }
     summary << "\n";
 
@@ -493,7 +461,8 @@ int main(int argc, char ** argv)
   summary << "Total line ms: " << total_line_ms << "\n";
   summary << "Mean edge ms: " << (total_edge_ms / scenes.size()) << "\n";
   summary << "Mean line ms: " << (total_line_ms / scenes.size()) << "\n";
-  summary << "Mean speedup (edge/line): " << (total_edge_ms / std::max(total_line_ms, 1e-6)) << "x\n";
+  summary << "Mean speedup (edge/line): " << (total_edge_ms / std::max(total_line_ms, 1e-6))
+          << "x\n";
   summary.close();
 
   std::cout << "\nSummary written to " << output_dir / "summary.txt" << "\n";

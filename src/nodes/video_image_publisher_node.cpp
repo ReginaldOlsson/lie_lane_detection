@@ -1,12 +1,13 @@
-#include <chrono>
-#include <memory>
-#include <string>
-
 #include <cv_bridge/cv_bridge.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/videoio.hpp>
 #include <rclcpp/rclcpp.hpp>
+
 #include <sensor_msgs/msg/image.hpp>
+
+#include <chrono>
+#include <memory>
+#include <string>
 
 namespace lie_lane_detection
 {
@@ -14,14 +15,12 @@ namespace lie_lane_detection
 class VideoImagePublisherNode : public rclcpp::Node
 {
 public:
-  VideoImagePublisherNode()
-  : Node("video_image_publisher")
+  VideoImagePublisherNode() : Node("video_image_publisher")
   {
     const std::string video_path = declare_parameter<std::string>(
-      "video_path",
-      "/home/mosal/Downloads/truck_videos/truck_highway_7m40.webm");
-    const std::string image_topic = declare_parameter<std::string>(
-      "image_topic", "/camera/image_raw");
+      "video_path", "/home/mosal/Downloads/truck_videos/truck_highway_7m40.webm");
+    const std::string image_topic =
+      declare_parameter<std::string>("image_topic", "/camera/image_raw");
     frame_id_ = declare_parameter<std::string>("frame_id", "camera_front");
     publish_rate_hz_ = declare_parameter<double>("publish_rate_hz", 10.0);
     loop_ = declare_parameter<bool>("loop", true);
@@ -48,8 +47,8 @@ public:
     RCLCPP_INFO(
       get_logger(),
       "Publishing %s (%dx%d, ~%d frames @ %.1f src fps) on %s at %.1f Hz, target_width=%d",
-      video_path.c_str(), width, height, frames, fps, image_topic.c_str(),
-      publish_rate_hz_, target_width_);
+      video_path.c_str(), width, height, frames, fps, image_topic.c_str(), publish_rate_hz_,
+      target_width_);
   }
 
 private:
@@ -71,9 +70,8 @@ private:
     }
 
     if (target_width_ > 0 && frame.cols != target_width_) {
-      const int target_h = static_cast<int>(
-        std::lround(static_cast<double>(frame.rows) * target_width_ /
-        static_cast<double>(frame.cols)));
+      const int target_h = static_cast<int>(std::lround(
+        static_cast<double>(frame.rows) * target_width_ / static_cast<double>(frame.cols)));
       cv::resize(frame, frame, cv::Size(target_width_, target_h));
     }
 
@@ -85,8 +83,7 @@ private:
     image_pub_->publish(*cv_image.toImageMsg());
 
     if (frame_index_ % 30 == 0) {
-      RCLCPP_INFO(
-        get_logger(), "Published frame %d (%dx%d)", frame_index_, frame.cols, frame.rows);
+      RCLCPP_INFO(get_logger(), "Published frame %d (%dx%d)", frame_index_, frame.cols, frame.rows);
     }
     ++frame_index_;
   }

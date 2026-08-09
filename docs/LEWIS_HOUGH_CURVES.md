@@ -1,6 +1,6 @@
 # Lewis et al. (IVCNZ 2016) — Parabolic Hough + RHT
 
-Reference: Baker, Lewis, Mills — *Power line detection using a randomized Hough transform with an improved accumulator* (IVCNZ 2016). Local copy: `/home/mosal/Downloads/ivcnz_lewis_final_4.pdf`.
+Reference: Baker, Lewis, Mills — _Power line detection using a randomized Hough transform with an improved accumulator_ (IVCNZ 2016). Local copy: `/home/mosal/Downloads/ivcnz_lewis_final_4.pdf`.
 
 This note maps the paper's ideas to `lie_lane_detection` and records what we adopted vs. what remains future work.
 
@@ -19,27 +19,27 @@ This note maps the paper's ideas to `lie_lane_detection` and records what we ado
 
 ## Mapping to our Lie-Hough pipeline
 
-| Lewis (2016) | Our implementation | Status |
-|--------------|-------------------|--------|
-| Perspective warp | `IPMTransformer` / `warpPerspectiveToBev` | Done |
-| Anisotropic blur | `edge_anisotropic_blur` — `GaussianBlur(7×3)` on BEV gray | Done |
-| Edge thinning | `edge_thin` — morphological skeleton (`thinBinaryEdges`) | Done |
-| Curve family | Deformable template + SE(2): `xi = (vx, vy, ω, κ, σ)` | Generalization |
-| Hough voting | `LieHoughVoter` Stage A (SE2) + Stage B (κ, σ) | Done |
-| Hypothesis averaging | `hough_hypothesis_merge_ratio` — vote-weighted ξ average in Stage B | Done |
-| RHT epochs + peel | `use_iterative_peeling` + `peelEdgesNearCurve` | Done |
-| RANSAC refine | `ManifoldRansac` on manifold | Extension beyond paper |
-| Short-arc rejection | `min_inlier_y_coverage` — inliers must span ≥35% of image height | Done |
+| Lewis (2016)         | Our implementation                                                  | Status                 |
+| -------------------- | ------------------------------------------------------------------- | ---------------------- |
+| Perspective warp     | `IPMTransformer` / `warpPerspectiveToBev`                           | Done                   |
+| Anisotropic blur     | `edge_anisotropic_blur` — `GaussianBlur(7×3)` on BEV gray           | Done                   |
+| Edge thinning        | `edge_thin` — morphological skeleton (`thinBinaryEdges`)            | Done                   |
+| Curve family         | Deformable template + SE(2): `xi = (vx, vy, ω, κ, σ)`               | Generalization         |
+| Hough voting         | `LieHoughVoter` Stage A (SE2) + Stage B (κ, σ)                      | Done                   |
+| Hypothesis averaging | `hough_hypothesis_merge_ratio` — vote-weighted ξ average in Stage B | Done                   |
+| RHT epochs + peel    | `use_iterative_peeling` + `peelEdgesNearCurve`                      | Done                   |
+| RANSAC refine        | `ManifoldRansac` on manifold                                        | Extension beyond paper |
+| Short-arc rejection  | `min_inlier_y_coverage` — inliers must span ≥35% of image height    | Done                   |
 
 ---
 
 ## Parameters (YAML)
 
 ```yaml
-edge_anisotropic_blur: true   # Lewis-style directional smoothing
-edge_thin: true               # one-pixel-wide edge skeleton
-hough_hypothesis_merge_ratio: 0.85   # merge bins within 85% of peak votes
-min_inlier_y_coverage: 0.35          # reject local composite fits
+edge_anisotropic_blur: true # Lewis-style directional smoothing
+edge_thin: true # one-pixel-wide edge skeleton
+hough_hypothesis_merge_ratio: 0.85 # merge bins within 85% of peak votes
+min_inlier_y_coverage: 0.35 # reject local composite fits
 ```
 
 ---

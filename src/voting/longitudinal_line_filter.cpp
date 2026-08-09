@@ -3,8 +3,7 @@
 namespace lie_lane_detection
 {
 
-LongitudinalLineFilter::LongitudinalLineFilter(const PipelineParams & params)
-: params_(params)
+LongitudinalLineFilter::LongitudinalLineFilter(const PipelineParams & params) : params_(params)
 {
 }
 
@@ -13,7 +12,8 @@ bool LongitudinalLineFilter::passes(const LineSegment & line) const
   return isLongitudinalSegment(line.angle, params_.longitudinal_max_deviation_rad);
 }
 
-std::vector<LineSegment> LongitudinalLineFilter::filter(const std::vector<LineSegment> & lines) const
+std::vector<LineSegment> LongitudinalLineFilter::filter(
+  const std::vector<LineSegment> & lines) const
 {
   if (!params_.use_longitudinal_line_filter) {
     return lines;

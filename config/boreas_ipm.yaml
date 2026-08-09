@@ -7,15 +7,15 @@ boreas_ipm_node:
     bev_topic: "/ipm/bev"
 
     # Boreas metric IPM from packaged calib/ + live camera_info.
-    boreas_calib_dir: ""  # set by launch to share/boreas/calib
+    boreas_calib_dir: "" # set by launch to share/boreas/calib
     boreas_use_ground_ipm: false
     flip_horizontal: true
 
     # Performance: decode JPEG at 1/N and cap BEV size (targets ~30 Hz on CPU).
-    decode_reduce: 4          # 1|2|4|8  (OpenCV reduced JPEG decode)
+    decode_reduce: 4 # 1|2|4|8  (OpenCV reduced JPEG decode)
     max_bev_width_px: 320
     max_bev_height_px: 400
-    warp_interpolation: 1     # cv::INTER_LINEAR
+    warp_interpolation: 1 # cv::INTER_LINEAR
 
     # Cyan 5x5 grid inside IPM src ROI (warps into BEV to show distortion).
     draw_src_grid: false

@@ -1,9 +1,10 @@
 #pragma once
 
-#include <deque>
+#include "lie_lane_detection/mosaic/bev_registration.hpp"
+
 #include <opencv2/core.hpp>
 
-#include "lie_lane_detection/mosaic/bev_registration.hpp"
+#include <deque>
 
 namespace lie_lane_detection
 {
@@ -31,16 +32,16 @@ class BevMosaicAccumulator
 public:
   explicit BevMosaicAccumulator(BevMosaicParams params = BevMosaicParams{});
 
-  void setParams(const BevMosaicParams & params) {params_ = params;}
+  void setParams(const BevMosaicParams & params) { params_ = params; }
   void reset();
 
   BevMosaicFrameResult accumulate(const cv::Mat & current_bgr);
 
-  const cv::Mat & canvas() const {return canvas_;}
+  const cv::Mat & canvas() const { return canvas_; }
   const cv::Mat & previousFrame() const;
-  const cv::Mat & lastAlignedFrame() const {return last_aligned_;}
-  bool initialized() const {return initialized_;}
-  int storedFrameCount() const {return static_cast<int>(frames_.size());}
+  const cv::Mat & lastAlignedFrame() const { return last_aligned_; }
+  bool initialized() const { return initialized_; }
+  int storedFrameCount() const { return static_cast<int>(frames_.size()); }
 
 private:
   struct StoredFrame

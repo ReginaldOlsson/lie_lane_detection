@@ -1,18 +1,17 @@
 #include "lie_lane_detection/motion/ego_motion_estimator.hpp"
 
-#include <algorithm>
-#include <cmath>
-#include <vector>
-
 #include <opencv2/calib3d.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/video/tracking.hpp>
 
+#include <algorithm>
+#include <cmath>
+#include <vector>
+
 namespace lie_lane_detection
 {
 
-EgoMotionEstimator::EgoMotionEstimator(EgoMotionEstimatorParams params)
-: params_(std::move(params))
+EgoMotionEstimator::EgoMotionEstimator(EgoMotionEstimatorParams params) : params_(std::move(params))
 {
 }
 
@@ -34,10 +33,7 @@ double EgoMotionEstimator::robustMedian(std::vector<double> values)
 }
 
 double EgoMotionEstimator::imageDeltaToBevLateral(
-  double delta_image_x,
-  const PipelineParams & params,
-  int bev_cols,
-  double scale)
+  double delta_image_x, const PipelineParams & params, int bev_cols, double scale)
 {
   if (params.ipm_src_points.size() < 4 || bev_cols <= 0) {
     return 0.0;
@@ -77,7 +73,8 @@ EgoMotionEstimate EgoMotionEstimator::update(const cv::Mat & image_bgr, double /
   std::vector<cv::Point2f> pts0;
   pts0.reserve(400);
   for (int y = y_min; y < h - 8; y += params_.grid_step_px) {
-    for (int x = static_cast<int>(w * 0.08); x < static_cast<int>(w * 0.92); x += params_.grid_step_px) {
+    for (int x = static_cast<int>(w * 0.08); x < static_cast<int>(w * 0.92);
+         x += params_.grid_step_px) {
       pts0.emplace_back(static_cast<float>(x), static_cast<float>(y));
     }
   }
@@ -118,19 +115,18 @@ EgoMotionEstimate EgoMotionEstimator::update(const cv::Mat & image_bgr, double /
 
   out.delta_image_x = robustMedian(dx_vals);
   out.delta_image_y = robustMedian(dy_vals);
-  out.confidence = static_cast<double>(dx_vals.size()) /
-    static_cast<double>(std::max<size_t>(1, pts0.size()));
+  out.confidence =
+    static_cast<double>(dx_vals.size()) / static_cast<double>(std::max<size_t>(1, pts0.size()));
 
   if (valid0.size() >= 6) {
-    cv::Mat affine = cv::estimateAffinePartial2D(
-      valid0, valid1, cv::noArray(), cv::RANSAC, 3.0, 2000, 0.99);
+    cv::Mat affine =
+      cv::estimateAffinePartial2D(valid0, valid1, cv::noArray(), cv::RANSAC, 3.0, 2000, 0.99);
     if (!affine.empty()) {
       out.delta_yaw_rad = std::atan2(affine.at<double>(1, 0), affine.at<double>(0, 0));
     }
   }
 
-  out.valid = out.confidence >= 0.25 &&
-    std::abs(out.delta_image_x) < params_.max_flow_px;
+  out.valid = out.confidence >= 0.25 && std::abs(out.delta_image_x) < params_.max_flow_px;
 
   if (out.valid) {
     integrated_image_x_ = params_.integral_decay * integrated_image_x_ + out.delta_image_x;
@@ -143,9 +139,7 @@ EgoMotionEstimate EgoMotionEstimator::update(const cv::Mat & image_bgr, double /
 }
 
 void EgoMotionEstimator::applyIntegratedShiftToIpmRoi(
-  PipelineParams & params,
-  int cols,
-  int rows) const
+  PipelineParams & params, int cols, int rows) const
 {
   if (params.ipm_src_points.size() < 8 || std::abs(integrated_image_x_) < 0.5) {
     return;

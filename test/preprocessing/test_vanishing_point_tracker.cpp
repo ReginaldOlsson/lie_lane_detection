@@ -1,6 +1,6 @@
-#include <gtest/gtest.h>
-
 #include "lie_lane_detection/preprocessing/auto_frontal_ipm.hpp"
+
+#include <gtest/gtest.h>
 
 TEST(VanishingPointTracker, rejectsLargeJump)
 {

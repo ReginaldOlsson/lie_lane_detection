@@ -1,11 +1,11 @@
 #pragma once
 
+#include "lie_lane_detection/core/types.hpp"
+#include "lie_lane_detection/geometry/template_curve.hpp"
+
+#include <cmath>
 #include <random>
 #include <vector>
-#include <cmath>
-
-#include "lie_lane_detection/geometry/template_curve.hpp"
-#include "lie_lane_detection/core/types.hpp"
 
 namespace lie_lane_detection
 {
@@ -13,10 +13,7 @@ namespace test_helpers
 {
 
 inline std::vector<EdgePoint> samplePointsOnCurve(
-  const TemplateCurve & curve,
-  const XiVector & xi,
-  int num_points,
-  double noise_std = 0.0,
+  const TemplateCurve & curve, const XiVector & xi, int num_points, double noise_std = 0.0,
   unsigned seed = 42)
 {
   std::mt19937 rng(seed);

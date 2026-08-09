@@ -1,9 +1,9 @@
-#include <gtest/gtest.h>
+#include "lie_lane_detection/pipeline/detection_common.hpp"
+#include "lie_lane_detection/tracking/lane_tracker.hpp"
 
 #include <opencv2/imgproc.hpp>
 
-#include "lie_lane_detection/pipeline/detection_common.hpp"
-#include "lie_lane_detection/tracking/lane_tracker.hpp"
+#include <gtest/gtest.h>
 
 TEST(LaneTracker, prepareBevGrayForTracking)
 {

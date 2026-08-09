@@ -1,9 +1,9 @@
 #pragma once
 
-#include <opencv2/core.hpp>
-
 #include "lie_lane_detection/core/types.hpp"
 #include "lie_lane_detection/motion/ego_motion_estimator.hpp"
+
+#include <opencv2/core.hpp>
 
 namespace lie_lane_detection
 {
@@ -32,16 +32,17 @@ struct VanishingPointTrackerParams
 class VanishingPointTracker
 {
 public:
-  explicit VanishingPointTracker(VanishingPointTrackerParams params = VanishingPointTrackerParams{});
+  explicit VanishingPointTracker(
+    VanishingPointTrackerParams params = VanishingPointTrackerParams{});
 
   void reset();
-  void setParams(const VanishingPointTrackerParams & params) {params_ = params;}
+  void setParams(const VanishingPointTrackerParams & params) { params_ = params; }
 
   /// Fuse a per-frame VP estimate; returns the VP to use for IPM.
   VanishingPointEstimate update(const VanishingPointEstimate & measurement);
 
-  const VanishingPointEstimate & filtered() const {return filtered_;}
-  bool initialized() const {return initialized_;}
+  const VanishingPointEstimate & filtered() const { return filtered_; }
+  bool initialized() const { return initialized_; }
 
 private:
   bool isOutlier(const VanishingPointEstimate & measurement) const;
@@ -68,31 +69,20 @@ struct FrontalHomographyResult
 
 /// Estimate horizon vanishing point from lane-like Hough segments.
 VanishingPointEstimate estimateVanishingPoint(
-  const cv::Mat & image_bgr,
-  const PipelineParams & params = PipelineParams{});
+  const cv::Mat & image_bgr, const PipelineParams & params = PipelineParams{});
 
 /// Build ipm_src/dst trapezoid from VP (apex) and road bottom corners.
-bool configureAutoIpmRoi(
-  PipelineParams & params,
-  int cols,
-  int rows,
-  double vp_x,
-  double vp_y);
+bool configureAutoIpmRoi(PipelineParams & params, int cols, int rows, double vp_x, double vp_y);
 
 /// Estimate VP → ipm_src_points → 3×3 homography → BEV warp.
 /// Pass \p vp_tracker to apply fixed-camera temporal smoothing across frames.
 FrontalHomographyResult estimateFrontalHomography(
-  const cv::Mat & image_bgr,
-  PipelineParams params = PipelineParams{},
-  VanishingPointTracker * vp_tracker = nullptr,
-  EgoMotionEstimator * ego_motion = nullptr);
+  const cv::Mat & image_bgr, PipelineParams params = PipelineParams{},
+  VanishingPointTracker * vp_tracker = nullptr, EgoMotionEstimator * ego_motion = nullptr);
 
 /// Warp forward camera → pseudo-BEV using auto-estimated VP. Falls back to highway ROI.
 cv::Mat warpFrontalAutoIpm(
-  const cv::Mat & image_bgr,
-  PipelineParams & params,
-  VanishingPointEstimate * vp_out = nullptr,
-  cv::Mat * debug_viz = nullptr,
-  VanishingPointTracker * vp_tracker = nullptr);
+  const cv::Mat & image_bgr, PipelineParams & params, VanishingPointEstimate * vp_out = nullptr,
+  cv::Mat * debug_viz = nullptr, VanishingPointTracker * vp_tracker = nullptr);
 
 }  // namespace lie_lane_detection

@@ -24,8 +24,7 @@
   <arg name="offset_y" default="0.0"/>
   <arg name="offset_z" default="0.0"/>
 
-  <node pkg="lie_lane_detection" exec="boreas_birdeye_param_publisher.py"
-        name="boreas_birdeye_param_publisher" output="screen">
+  <node pkg="lie_lane_detection" exec="boreas_birdeye_param_publisher.py" name="boreas_birdeye_param_publisher" output="screen">
     <param name="use_sim_time" value="$(var use_sim_time)"/>
     <param name="params_topic" value="$(var params_topic)"/>
     <param name="frame_id" value="$(var frame_id)"/>

@@ -8,16 +8,12 @@ namespace lie_lane_detection
 
 LineSegmentRansacGate::LineSegmentRansacGate(
   const PipelineParams & params, TemplateCurve * template_curve)
-: params_(params),
-  template_curve_(template_curve),
-  association_(params, template_curve)
+: params_(params), template_curve_(template_curve), association_(params, template_curve)
 {
 }
 
 bool LineSegmentRansacGate::fitFromTwoLines(
-  const LineSegment & a,
-  const LineSegment & b,
-  XiVector & xi_out) const
+  const LineSegment & a, const LineSegment & b, XiVector & xi_out) const
 {
   if (template_curve_ == nullptr) {
     return false;
@@ -26,13 +22,13 @@ bool LineSegmentRansacGate::fitFromTwoLines(
   std::vector<EdgePoint> sample;
   sample.reserve(3);
   const auto add_mid = [&](const LineSegment & seg) {
-      EdgePoint e;
-      e.x = seg.mx;
-      e.y = seg.my;
-      e.magnitude = seg.length;
-      e.orientation = seg.angle;
-      sample.push_back(e);
-    };
+    EdgePoint e;
+    e.x = seg.mx;
+    e.y = seg.my;
+    e.magnitude = seg.length;
+    e.orientation = seg.angle;
+    sample.push_back(e);
+  };
   add_mid(a);
   add_mid(b);
   EdgePoint mid;
@@ -92,9 +88,7 @@ bool LineSegmentRansacGate::fitFromTwoLines(
 }
 
 int LineSegmentRansacGate::countInliers(
-  const XiVector & xi,
-  const std::vector<LineSegment> & candidates,
-  std::vector<bool> * mask) const
+  const XiVector & xi, const std::vector<LineSegment> & candidates, std::vector<bool> * mask) const
 {
   int count = 0;
   if (mask) {
@@ -112,8 +106,7 @@ int LineSegmentRansacGate::countInliers(
 }
 
 RansacGateResult LineSegmentRansacGate::filterSeed(
-  const LaneHypothesis & seed,
-  const std::vector<LineSegment> & lines) const
+  const LaneHypothesis & seed, const std::vector<LineSegment> & lines) const
 {
   RansacGateResult result;
   result.xi = seed.xi;
@@ -129,9 +122,9 @@ RansacGateResult LineSegmentRansacGate::filterSeed(
   candidates.reserve(lines.size());
   const double soft_gate = params_.inlier_threshold_px * 3.0;
   for (const auto & line : lines) {
-    if (params_.use_longitudinal_line_filter &&
-      !isLongitudinalSegment(line.angle, params_.longitudinal_max_deviation_rad))
-    {
+    if (
+      params_.use_longitudinal_line_filter &&
+      !isLongitudinalSegment(line.angle, params_.longitudinal_max_deviation_rad)) {
       continue;
     }
     if (template_curve_->segmentDistanceToCurve(seed.xi, line) < soft_gate) {
@@ -187,7 +180,8 @@ RansacGateResult LineSegmentRansacGate::filterSeed(
     }
   }
   result.inlier_ratio = static_cast<double>(best_inliers) / static_cast<double>(candidates.size());
-  result.valid = result.inlier_ratio >= params_.min_inlier_ratio * 0.5 &&
+  result.valid =
+    result.inlier_ratio >= params_.min_inlier_ratio * 0.5 &&
     static_cast<int>(result.inlier_lines.size()) >= std::max(2, params_.min_inliers / 4);
   return result;
 }

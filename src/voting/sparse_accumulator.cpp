@@ -5,8 +5,7 @@
 namespace lie_lane_detection
 {
 
-DenseAccumulator::DenseAccumulator(size_t cells)
-: cells_(cells, 0.0)
+DenseAccumulator::DenseAccumulator(size_t cells) : cells_(cells, 0.0)
 {
 }
 

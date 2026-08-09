@@ -1,12 +1,12 @@
 #include "lie_lane_detection/voting/cuda_voting.hpp"
 
+#include <cuda_runtime.h>
+
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <mutex>
 #include <vector>
-
-#include <cuda_runtime.h>
 
 namespace lie_lane_detection
 {
@@ -64,27 +64,12 @@ __device__ __forceinline__ float distSqLocal(
 
 // One thread per edge; each edge accumulates into the localized SE(2) window.
 __global__ void stageAKernel(
-  const float * __restrict__ edge_x,
-  const float * __restrict__ edge_y,
-  const float * __restrict__ edge_mag,
-  int num_edges,
-  const float * __restrict__ se2_inv_lut,
-  const float * __restrict__ vx_lut,
-  const float * __restrict__ preset_kappa,
-  const float * __restrict__ preset_sigma,
-  int num_presets,
-  int vx_bins,
-  int vy_bins,
-  int omega_bins,
-  int ix_radius,
-  float vx_min,
-  float vx_max,
-  float y_min,
-  float y_span,
-  float vote_thresh,
-  int soft_voting,
-  float inv_two_sigma_sq,
-  float * __restrict__ accum)
+  const float * __restrict__ edge_x, const float * __restrict__ edge_y,
+  const float * __restrict__ edge_mag, int num_edges, const float * __restrict__ se2_inv_lut,
+  const float * __restrict__ vx_lut, const float * __restrict__ preset_kappa,
+  const float * __restrict__ preset_sigma, int num_presets, int vx_bins, int vy_bins,
+  int omega_bins, int ix_radius, float vx_min, float vx_max, float y_min, float y_span,
+  float vote_thresh, int soft_voting, float inv_two_sigma_sq, float * __restrict__ accum)
 {
   const int e = blockIdx.x * blockDim.x + threadIdx.x;
   if (e >= num_edges) {
@@ -187,9 +172,9 @@ bool ensureCapacity(float ** p, size_t * cap, size_t need)
 bool timingEnabled()
 {
   static const bool on = [] {
-      const char * v = std::getenv("LIE_CUDA_TIMING");
-      return v && v[0] != '\0' && v[0] != '0';
-    }();
+    const char * v = std::getenv("LIE_CUDA_TIMING");
+    return v && v[0] != '\0' && v[0] != '0';
+  }();
   return on;
 }
 
@@ -206,20 +191,15 @@ bool isAvailable()
 {
   static std::once_flag once;
   static bool available = false;
-  std::call_once(once, [] {available = checkAvailable();});
+  std::call_once(once, [] { available = checkAvailable(); });
   return available;
 }
 
 bool stageAVote(
-  const StageAConfig & cfg,
-  const std::vector<float> & edge_x,
-  const std::vector<float> & edge_y,
-  const std::vector<float> & edge_mag,
-  const std::vector<float> & se2_inv_lut,
-  const std::vector<float> & vx_lut,
-  const std::vector<float> & preset_kappa,
-  const std::vector<float> & preset_sigma,
-  std::vector<double> & accum_out)
+  const StageAConfig & cfg, const std::vector<float> & edge_x, const std::vector<float> & edge_y,
+  const std::vector<float> & edge_mag, const std::vector<float> & se2_inv_lut,
+  const std::vector<float> & vx_lut, const std::vector<float> & preset_kappa,
+  const std::vector<float> & preset_sigma, std::vector<double> & accum_out)
 {
   if (!isAvailable()) {
     return false;
@@ -236,20 +216,36 @@ bool stageAVote(
     return true;
   }
 
-  auto ok = [](cudaError_t e) {return e == cudaSuccess;};
+  auto ok = [](cudaError_t e) { return e == cudaSuccess; };
 
   GpuContext & ctx = gpuContext();
   std::lock_guard<std::mutex> lock(ctx.mu);
 
-  if (!ensureCapacity(&ctx.d_x, &ctx.cap_edges, edge_x.size())) {return false;}
+  if (!ensureCapacity(&ctx.d_x, &ctx.cap_edges, edge_x.size())) {
+    return false;
+  }
   // d_y, d_mag share the edge capacity but need their own allocations.
-  if (!ensureCapacity(&ctx.d_y, &ctx.cap_edges, edge_x.size())) {return false;}
-  if (!ensureCapacity(&ctx.d_mag, &ctx.cap_edges, edge_x.size())) {return false;}
-  if (!ensureCapacity(&ctx.d_lut, &ctx.cap_lut, se2_inv_lut.size())) {return false;}
-  if (!ensureCapacity(&ctx.d_vx, &ctx.cap_vx, vx_lut.size())) {return false;}
-  if (!ensureCapacity(&ctx.d_pk, &ctx.cap_preset, preset_kappa.size())) {return false;}
-  if (!ensureCapacity(&ctx.d_ps, &ctx.cap_preset, preset_sigma.size())) {return false;}
-  if (!ensureCapacity(&ctx.d_acc, &ctx.cap_acc, static_cast<size_t>(se2_cells))) {return false;}
+  if (!ensureCapacity(&ctx.d_y, &ctx.cap_edges, edge_x.size())) {
+    return false;
+  }
+  if (!ensureCapacity(&ctx.d_mag, &ctx.cap_edges, edge_x.size())) {
+    return false;
+  }
+  if (!ensureCapacity(&ctx.d_lut, &ctx.cap_lut, se2_inv_lut.size())) {
+    return false;
+  }
+  if (!ensureCapacity(&ctx.d_vx, &ctx.cap_vx, vx_lut.size())) {
+    return false;
+  }
+  if (!ensureCapacity(&ctx.d_pk, &ctx.cap_preset, preset_kappa.size())) {
+    return false;
+  }
+  if (!ensureCapacity(&ctx.d_ps, &ctx.cap_preset, preset_sigma.size())) {
+    return false;
+  }
+  if (!ensureCapacity(&ctx.d_acc, &ctx.cap_acc, static_cast<size_t>(se2_cells))) {
+    return false;
+  }
 
   const bool timing = timingEnabled();
   cudaEvent_t t0, t1;
@@ -259,12 +255,12 @@ bool stageAVote(
   }
 
   auto up = [&](float * dst, const std::vector<float> & src) {
-      return cudaMemcpy(dst, src.data(), src.size() * sizeof(float), cudaMemcpyHostToDevice);
-    };
-  if (!ok(up(ctx.d_x, edge_x)) || !ok(up(ctx.d_y, edge_y)) || !ok(up(ctx.d_mag, edge_mag)) ||
+    return cudaMemcpy(dst, src.data(), src.size() * sizeof(float), cudaMemcpyHostToDevice);
+  };
+  if (
+    !ok(up(ctx.d_x, edge_x)) || !ok(up(ctx.d_y, edge_y)) || !ok(up(ctx.d_mag, edge_mag)) ||
     !ok(up(ctx.d_lut, se2_inv_lut)) || !ok(up(ctx.d_vx, vx_lut)) ||
-    !ok(up(ctx.d_pk, preset_kappa)) || !ok(up(ctx.d_ps, preset_sigma)))
-  {
+    !ok(up(ctx.d_pk, preset_kappa)) || !ok(up(ctx.d_ps, preset_sigma))) {
     return false;
   }
   if (!ok(cudaMemset(ctx.d_acc, 0, static_cast<size_t>(se2_cells) * sizeof(float)))) {
@@ -273,13 +269,17 @@ bool stageAVote(
 
   const int block = 128;
   const int grid = (num_edges + block - 1) / block;
-  if (timing) {cudaEventRecord(t0);}
+  if (timing) {
+    cudaEventRecord(t0);
+  }
   stageAKernel<<<grid, block>>>(
     ctx.d_x, ctx.d_y, ctx.d_mag, num_edges, ctx.d_lut, ctx.d_vx, ctx.d_pk, ctx.d_ps,
-    cfg.num_presets, cfg.vx_bins, cfg.vy_bins, cfg.omega_bins, cfg.ix_radius,
-    cfg.vx_min, cfg.vx_max, cfg.y_min, cfg.y_span, cfg.vote_thresh,
-    cfg.soft_voting, cfg.inv_two_sigma_sq, ctx.d_acc);
-  if (timing) {cudaEventRecord(t1);}
+    cfg.num_presets, cfg.vx_bins, cfg.vy_bins, cfg.omega_bins, cfg.ix_radius, cfg.vx_min,
+    cfg.vx_max, cfg.y_min, cfg.y_span, cfg.vote_thresh, cfg.soft_voting, cfg.inv_two_sigma_sq,
+    ctx.d_acc);
+  if (timing) {
+    cudaEventRecord(t1);
+  }
 
   if (!ok(cudaGetLastError()) || !ok(cudaDeviceSynchronize())) {
     return false;
@@ -287,8 +287,7 @@ bool stageAVote(
 
   std::vector<float> host_acc(static_cast<size_t>(se2_cells));
   if (!ok(cudaMemcpy(
-      host_acc.data(), ctx.d_acc, host_acc.size() * sizeof(float), cudaMemcpyDeviceToHost)))
-  {
+        host_acc.data(), ctx.d_acc, host_acc.size() * sizeof(float), cudaMemcpyDeviceToHost))) {
     return false;
   }
   for (int i = 0; i < se2_cells; ++i) {

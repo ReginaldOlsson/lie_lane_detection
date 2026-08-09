@@ -1,13 +1,13 @@
 #pragma once
 
-#include <cstdint>
-#include <vector>
-
-#include <opencv2/core.hpp>
-
 #include "lie_lane_detection/core/types.hpp"
 #include "lie_lane_detection/geometry/template_curve.hpp"
 #include "lie_lane_detection/pipeline/lane_detection_runner.hpp"
+
+#include <opencv2/core.hpp>
+
+#include <cstdint>
+#include <vector>
 
 namespace lie_lane_detection
 {
@@ -71,18 +71,13 @@ struct TrackedFrameResult
 
 /// Narrow Lie-Hough vx search window around tracked lanes (Phase 1).
 void narrowParamsForTracks(
-  PipelineParams & params,
-  const std::vector<LaneTrack> & tracks,
-  double margin_px,
+  PipelineParams & params, const std::vector<LaneTrack> & tracks, double margin_px,
   double ekf_gate_sigma = 2.5);
 
 /// Keep edges whose (x,y) falls inside any track corridor.
 std::vector<EdgePoint> filterEdgesInTrackCorridors(
-  const std::vector<EdgePoint> & edges,
-  const std::vector<LaneTrack> & tracks,
-  const LaneTrackerParams & tracker_params,
-  const TemplateCurve & curve,
-  double y_max);
+  const std::vector<EdgePoint> & edges, const std::vector<LaneTrack> & tracks,
+  const LaneTrackerParams & tracker_params, const TemplateCurve & curve, double y_max);
 
 class LaneTracker
 {
@@ -90,19 +85,17 @@ public:
   explicit LaneTracker(LaneTrackerParams params = LaneTrackerParams{});
 
   void reset();
-  void setParams(const LaneTrackerParams & params) {params_ = params;}
+  void setParams(const LaneTrackerParams & params) { params_ = params; }
 
   /// Compensate estimated ego lateral motion in BEV (call before predict/process).
   void compensateEgoMotion(double bev_lateral_delta);
 
-  const std::vector<LaneTrack> & tracks() const {return tracks_;}
+  const std::vector<LaneTrack> & tracks() const { return tracks_; }
 
   /// Pass \p video_frame_index for timestamp; \p video_fps for predict dt.
   /// Pass BGR or grayscale BEV; tracking runs on grayscale, overlay uses BGR.
   TrackedFrameResult processFrame(
-    const cv::Mat & bev_bgr,
-    PipelineParams detect_params,
-    int video_frame_index = -1,
+    const cv::Mat & bev_bgr, PipelineParams detect_params, int video_frame_index = -1,
     double video_fps = 30.0);
 
   double lateralStdAtY(double y, double y_max) const;
@@ -110,14 +103,9 @@ public:
 private:
   void predict(double dt);
   void stripeUpdate(
-    const std::vector<EdgePoint> & edges,
-    const TemplateCurve & curve,
-    double bev_cols,
-    double bev_rows,
-    const PipelineParams & detect_params);
-  void fuseMeasurements(
-    const std::vector<LaneHypothesis> & detections,
-    double bev_cols);
+    const std::vector<EdgePoint> & edges, const TemplateCurve & curve, double bev_cols,
+    double bev_rows, const PipelineParams & detect_params);
+  void fuseMeasurements(const std::vector<LaneHypothesis> & detections, double bev_cols);
   void clampTrackToBev(LaneTrack & track, double bev_cols, double bev_rows) const;
   void pruneDuplicateTracks(double min_sep_px);
   std::vector<LaneHypothesis> tracksToHypotheses(const TemplateCurve & curve) const;

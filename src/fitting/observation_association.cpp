@@ -18,9 +18,9 @@ bool ObservationAssociation::lineSupportsSeed(
   if (template_curve_ == nullptr) {
     return false;
   }
-  if (params_.use_longitudinal_line_filter &&
-    !isLongitudinalSegment(line.angle, params_.longitudinal_max_deviation_rad))
-  {
+  if (
+    params_.use_longitudinal_line_filter &&
+    !isLongitudinalSegment(line.angle, params_.longitudinal_max_deviation_rad)) {
     return false;
   }
 
@@ -29,9 +29,9 @@ bool ObservationAssociation::lineSupportsSeed(
   const Vec2 p1 = g_inv * Vec2(line.x2, line.y2);
   const Vec2 pm = g_inv * Vec2(line.mx, line.my);
 
-  if (params_.ceres_reject_corridor_center &&
-    std::abs(pm.x()) < params_.ceres_corridor_half_width_px)
-  {
+  if (
+    params_.ceres_reject_corridor_center &&
+    std::abs(pm.x()) < params_.ceres_corridor_half_width_px) {
     return false;
   }
 
@@ -66,9 +66,9 @@ bool ObservationAssociation::edgeSupportsSeed(
   if (template_curve_ == nullptr) {
     return false;
   }
-  if (params_.use_longitudinal_line_filter &&
-    !isLongitudinalSegment(edge.orientation, params_.longitudinal_max_deviation_rad))
-  {
+  if (
+    params_.use_longitudinal_line_filter &&
+    !isLongitudinalSegment(edge.orientation, params_.longitudinal_max_deviation_rad)) {
     return false;
   }
 
@@ -80,9 +80,9 @@ bool ObservationAssociation::edgeSupportsSeed(
 
   const Sophus::SE2d g_inv = xiToSE2(seed_xi).inverse();
   const Vec2 local_p = g_inv * p;
-  if (params_.ceres_reject_corridor_center &&
-    std::abs(local_p.x()) < params_.ceres_corridor_half_width_px)
-  {
+  if (
+    params_.ceres_reject_corridor_center &&
+    std::abs(local_p.x()) < params_.ceres_corridor_half_width_px) {
     return false;
   }
 
@@ -100,8 +100,7 @@ bool ObservationAssociation::edgeSupportsSeed(
 }
 
 std::vector<AssociatedLine> ObservationAssociation::associateLines(
-  const XiVector & seed_xi,
-  const std::vector<LineSegment> & lines) const
+  const XiVector & seed_xi, const std::vector<LineSegment> & lines) const
 {
   std::vector<AssociatedLine> out;
   out.reserve(lines.size());
@@ -123,8 +122,7 @@ std::vector<AssociatedLine> ObservationAssociation::associateLines(
 }
 
 std::vector<AssociatedEdge> ObservationAssociation::associateEdges(
-  const XiVector & seed_xi,
-  const std::vector<EdgePoint> & edges) const
+  const XiVector & seed_xi, const std::vector<EdgePoint> & edges) const
 {
   std::vector<AssociatedEdge> out;
   out.reserve(edges.size());

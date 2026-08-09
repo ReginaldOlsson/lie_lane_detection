@@ -1,14 +1,14 @@
 #include "lie_lane_detection/preprocessing/auto_frontal_ipm.hpp"
 
-#include <algorithm>
-#include <cmath>
-#include <vector>
+#include "lie_lane_detection/motion/ego_motion_estimator.hpp"
+#include "lie_lane_detection/pipeline/lane_detection_runner.hpp"
+#include "lie_lane_detection/preprocessing/ipm_transformer.hpp"
 
 #include <opencv2/imgproc.hpp>
 
-#include "lie_lane_detection/pipeline/lane_detection_runner.hpp"
-#include "lie_lane_detection/preprocessing/ipm_transformer.hpp"
-#include "lie_lane_detection/motion/ego_motion_estimator.hpp"
+#include <algorithm>
+#include <cmath>
+#include <vector>
 
 namespace lie_lane_detection
 {
@@ -25,11 +25,7 @@ struct Line2D
   double length{0.0};
 };
 
-bool intersectLines(
-  const Line2D & a,
-  const Line2D & b,
-  double & ix,
-  double & iy)
+bool intersectLines(const Line2D & a, const Line2D & b, double & ix, double & iy)
 {
   const double x1 = a.x1;
   const double y1 = a.y1;
@@ -56,21 +52,12 @@ cv::Point2f pointOnRay(double vx, double vy, double bx, double by, double y_targ
     return cv::Point2f(static_cast<float>(bx), static_cast<float>(by));
   }
   const double t = (y_target - vy) / (by - vy);
-  return cv::Point2f(
-    static_cast<float>(vx + t * (bx - vx)),
-    static_cast<float>(y_target));
+  return cv::Point2f(static_cast<float>(vx + t * (bx - vx)), static_cast<float>(y_target));
 }
 
 bool refineVotePeakCentroid(
-  const std::vector<float> & votes,
-  int vote_w,
-  int vote_h,
-  int peak_x,
-  int peak_y,
-  double & cx,
-  double & cy,
-  float & peak_vote,
-  float & second_vote)
+  const std::vector<float> & votes, int vote_w, int vote_h, int peak_x, int peak_y, double & cx,
+  double & cy, float & peak_vote, float & second_vote)
 {
   const int radius = 3;
   double sum_w = 0.0;
@@ -203,15 +190,12 @@ VanishingPointEstimate VanishingPointTracker::update(const VanishingPointEstimat
     return output;
   }
 
-  const double r = params_.base_measurement_noise_px /
-    std::max(0.2, measurement.confidence);
+  const double r = params_.base_measurement_noise_px / std::max(0.2, measurement.confidence);
   const double kx = p_x_ / (p_x_ + r);
   const double ky = p_y_ / (p_y_ + r);
   filtered_.x += kx * (measurement.x - filtered_.x);
   filtered_.y += ky * (measurement.y - filtered_.y);
-  filtered_.confidence = std::max(
-    measurement.confidence,
-    filtered_.confidence * 0.95);
+  filtered_.confidence = std::max(measurement.confidence, filtered_.confidence * 0.95);
   filtered_.valid = true;
   p_x_ = (1.0 - kx) * p_x_ + params_.process_noise_px;
   p_y_ = (1.0 - ky) * p_y_ + params_.process_noise_px;
@@ -221,8 +205,7 @@ VanishingPointEstimate VanishingPointTracker::update(const VanishingPointEstimat
 }
 
 VanishingPointEstimate estimateVanishingPoint(
-  const cv::Mat & image_bgr,
-  const PipelineParams & /*params*/)
+  const cv::Mat & image_bgr, const PipelineParams & /*params*/)
 {
   VanishingPointEstimate result;
   if (image_bgr.empty()) {
@@ -243,9 +226,7 @@ VanishingPointEstimate estimateVanishingPoint(
 
   const int min_len = std::max(18, static_cast<int>(0.04 * std::min(gray.cols, gray.rows)));
   std::vector<cv::Vec4i> raw_lines;
-  cv::HoughLinesP(
-    edges, raw_lines, 1.0, CV_PI / 180.0,
-    std::max(20, min_len), min_len, 12);
+  cv::HoughLinesP(edges, raw_lines, 1.0, CV_PI / 180.0, std::max(20, min_len), min_len, 12);
 
   std::vector<Line2D> lines;
   lines.reserve(raw_lines.size());
@@ -331,12 +312,7 @@ VanishingPointEstimate estimateVanishingPoint(
   return result;
 }
 
-bool configureAutoIpmRoi(
-  PipelineParams & params,
-  int cols,
-  int rows,
-  double vp_x,
-  double vp_y)
+bool configureAutoIpmRoi(PipelineParams & params, int cols, int rows, double vp_x, double vp_y)
 {
   if (cols < 32 || rows < 32) {
     return false;
@@ -353,8 +329,7 @@ bool configureAutoIpmRoi(
   const double bl_y = params.ipm_bottom_y_ratio * h;
   const double br_y = bl_y;
   const double y_top = std::clamp(
-    vp_y + params.ipm_top_y_offset_ratio * h,
-    params.ipm_top_y_min_ratio * h,
+    vp_y + params.ipm_top_y_offset_ratio * h, params.ipm_top_y_min_ratio * h,
     params.ipm_top_y_max_ratio * h);
 
   const cv::Point2f tl = pointOnRay(vp_x, vp_y, bl_x, bl_y, y_top);
@@ -362,18 +337,20 @@ bool configureAutoIpmRoi(
 
   updateIpmDstFromBevExtent(params);
   params.ipm_src_points = {
-    bl_x, bl_y,
-    br_x, br_y,
-    static_cast<double>(tr.x), static_cast<double>(tr.y),
-    static_cast<double>(tl.x), static_cast<double>(tl.y),
+    bl_x,
+    bl_y,
+    br_x,
+    br_y,
+    static_cast<double>(tr.x),
+    static_cast<double>(tr.y),
+    static_cast<double>(tl.x),
+    static_cast<double>(tl.y),
   };
   return true;
 }
 
 FrontalHomographyResult estimateFrontalHomography(
-  const cv::Mat & image_bgr,
-  PipelineParams params,
-  VanishingPointTracker * vp_tracker,
+  const cv::Mat & image_bgr, PipelineParams params, VanishingPointTracker * vp_tracker,
   EgoMotionEstimator * ego_motion)
 {
   FrontalHomographyResult result;
@@ -400,8 +377,7 @@ FrontalHomographyResult estimateFrontalHomography(
     setDefaultHighwayIpmRoi(params, image_bgr.cols, image_bgr.rows);
   }
   if (ego_motion != nullptr) {
-    ego_motion->applyIntegratedShiftToIpmRoi(
-      params, image_bgr.cols, image_bgr.rows);
+    ego_motion->applyIntegratedShiftToIpmRoi(params, image_bgr.cols, image_bgr.rows);
   }
   result.params = params;
 
@@ -410,11 +386,11 @@ FrontalHomographyResult estimateFrontalHomography(
   if (vp.valid) {
     cv::circle(
       result.debug_roi,
-      cv::Point(static_cast<int>(std::lround(vp.x)), static_cast<int>(std::lround(vp.y))),
-      8, cv::Scalar(0, 0, 255), 2);
-    if (vp_tracker != nullptr && raw_vp.valid &&
-      (std::abs(raw_vp.x - vp.x) > 2.0 || std::abs(raw_vp.y - vp.y) > 2.0))
-    {
+      cv::Point(static_cast<int>(std::lround(vp.x)), static_cast<int>(std::lround(vp.y))), 8,
+      cv::Scalar(0, 0, 255), 2);
+    if (
+      vp_tracker != nullptr && raw_vp.valid &&
+      (std::abs(raw_vp.x - vp.x) > 2.0 || std::abs(raw_vp.y - vp.y) > 2.0)) {
       cv::circle(
         result.debug_roi,
         cv::Point(static_cast<int>(std::lround(raw_vp.x)), static_cast<int>(std::lround(raw_vp.y))),
@@ -442,11 +418,8 @@ FrontalHomographyResult estimateFrontalHomography(
 }
 
 cv::Mat warpFrontalAutoIpm(
-  const cv::Mat & image_bgr,
-  PipelineParams & params,
-  VanishingPointEstimate * vp_out,
-  cv::Mat * debug_viz,
-  VanishingPointTracker * vp_tracker)
+  const cv::Mat & image_bgr, PipelineParams & params, VanishingPointEstimate * vp_out,
+  cv::Mat * debug_viz, VanishingPointTracker * vp_tracker)
 {
   const VanishingPointEstimate raw_vp = estimateVanishingPoint(image_bgr, params);
   VanishingPointEstimate vp = raw_vp;
@@ -469,9 +442,8 @@ cv::Mat warpFrontalAutoIpm(
     *debug_viz = image_bgr.clone();
     if (vp.valid) {
       cv::circle(
-        *debug_viz,
-        cv::Point(static_cast<int>(vp.x), static_cast<int>(vp.y)),
-        8, cv::Scalar(0, 0, 255), 2);
+        *debug_viz, cv::Point(static_cast<int>(vp.x), static_cast<int>(vp.y)), 8,
+        cv::Scalar(0, 0, 255), 2);
     }
     if (params.ipm_src_points.size() >= 8) {
       std::vector<cv::Point> poly(4);

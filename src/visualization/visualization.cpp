@@ -1,8 +1,8 @@
 #include "lie_lane_detection/visualization/visualization.hpp"
 
-#include <array>
-
 #include <opencv2/imgproc.hpp>
+
+#include <array>
 
 namespace lie_lane_detection
 {
@@ -31,8 +31,7 @@ std::array<float, 4> roleColor(LaneRole role)
 }  // namespace
 
 visualization_msgs::msg::MarkerArray lanesToMarkers(
-  const std::vector<LaneHypothesis> & lanes,
-  const std::string & frame_id,
+  const std::vector<LaneHypothesis> & lanes, const std::string & frame_id,
   const rclcpp::Time & stamp)
 {
   visualization_msgs::msg::MarkerArray array;
@@ -65,9 +64,7 @@ visualization_msgs::msg::MarkerArray lanesToMarkers(
 }
 
 visualization_msgs::msg::MarkerArray mergesToMarkers(
-  const std::vector<MergeEvent> & merges,
-  const std::string & frame_id,
-  const rclcpp::Time & stamp)
+  const std::vector<MergeEvent> & merges, const std::string & frame_id, const rclcpp::Time & stamp)
 {
   visualization_msgs::msg::MarkerArray array;
   int id = 0;
@@ -98,38 +95,33 @@ namespace
 
 bool pointInImage(const cv::Point & p, int cols, int rows, int margin = 0)
 {
-  return p.x >= -margin && p.y >= -margin &&
-         p.x < cols + margin && p.y < rows + margin;
+  return p.x >= -margin && p.y >= -margin && p.x < cols + margin && p.y < rows + margin;
 }
 
 cv::Point2f projectBevPoint(const cv::Mat & H_bev2img, double bx, double by)
 {
   const double w =
-    H_bev2img.at<double>(2, 0) * bx +
-    H_bev2img.at<double>(2, 1) * by +
-    H_bev2img.at<double>(2, 2);
+    H_bev2img.at<double>(2, 0) * bx + H_bev2img.at<double>(2, 1) * by + H_bev2img.at<double>(2, 2);
   if (std::abs(w) < 1e-9) {
     return cv::Point2f(-1.0f, -1.0f);
   }
   const double inv_w = 1.0 / w;
   return cv::Point2f(
     static_cast<float>(
-      (H_bev2img.at<double>(0, 0) * bx +
-       H_bev2img.at<double>(0, 1) * by +
-       H_bev2img.at<double>(0, 2)) * inv_w),
+      (H_bev2img.at<double>(0, 0) * bx + H_bev2img.at<double>(0, 1) * by +
+       H_bev2img.at<double>(0, 2)) *
+      inv_w),
     static_cast<float>(
-      (H_bev2img.at<double>(1, 0) * bx +
-       H_bev2img.at<double>(1, 1) * by +
-       H_bev2img.at<double>(1, 2)) * inv_w));
+      (H_bev2img.at<double>(1, 0) * bx + H_bev2img.at<double>(1, 1) * by +
+       H_bev2img.at<double>(1, 2)) *
+      inv_w));
 }
 
 }  // namespace
 
 cv::Mat drawFrontalOverlay(
-  const cv::Mat & frontal_bgr,
-  const std::vector<LaneHypothesis> & lanes,
-  const std::vector<MergeEvent> & merges,
-  const cv::Mat & H_img2bev)
+  const cv::Mat & frontal_bgr, const std::vector<LaneHypothesis> & lanes,
+  const std::vector<MergeEvent> & merges, const cv::Mat & H_img2bev)
 {
   cv::Mat overlay = frontal_bgr.clone();
   if (H_img2bev.empty() || H_img2bev.rows != 3 || H_img2bev.cols != 3) {
@@ -144,13 +136,12 @@ cv::Mat drawFrontalOverlay(
 
   for (const auto & lane : lanes) {
     const auto rgba = roleColor(lane.role);
-    const cv::Scalar color(
-      rgba[2] * 255, rgba[1] * 255, rgba[0] * 255);
+    const cv::Scalar color(rgba[2] * 255, rgba[1] * 255, rgba[0] * 255);
     for (size_t i = 1; i < lane.polyline.size(); ++i) {
-      const cv::Point2f p0f = projectBevPoint(
-        H_bev2img, lane.polyline[i - 1].x(), lane.polyline[i - 1].y());
-      const cv::Point2f p1f = projectBevPoint(
-        H_bev2img, lane.polyline[i].x(), lane.polyline[i].y());
+      const cv::Point2f p0f =
+        projectBevPoint(H_bev2img, lane.polyline[i - 1].x(), lane.polyline[i - 1].y());
+      const cv::Point2f p1f =
+        projectBevPoint(H_bev2img, lane.polyline[i].x(), lane.polyline[i].y());
       const cv::Point p0(static_cast<int>(p0f.x), static_cast<int>(p0f.y));
       const cv::Point p1(static_cast<int>(p1f.x), static_cast<int>(p1f.y));
       if (pointInImage(p0, cols, rows, 50) && pointInImage(p1, cols, rows, 50)) {
@@ -160,8 +151,7 @@ cv::Mat drawFrontalOverlay(
   }
 
   for (const auto & merge : merges) {
-    const cv::Point2f cf = projectBevPoint(
-      H_bev2img, merge.merge_point.x(), merge.merge_point.y());
+    const cv::Point2f cf = projectBevPoint(H_bev2img, merge.merge_point.x(), merge.merge_point.y());
     const cv::Point c(static_cast<int>(cf.x), static_cast<int>(cf.y));
     if (pointInImage(c, cols, rows)) {
       cv::circle(overlay, c, 8, cv::Scalar(0, 0, 255), -1, cv::LINE_AA);
@@ -172,8 +162,7 @@ cv::Mat drawFrontalOverlay(
 }
 
 cv::Mat drawOverlay(
-  const cv::Mat & bev_bgr,
-  const std::vector<LaneHypothesis> & lanes,
+  const cv::Mat & bev_bgr, const std::vector<LaneHypothesis> & lanes,
   const std::vector<MergeEvent> & merges)
 {
   cv::Mat overlay;
@@ -184,22 +173,18 @@ cv::Mat drawOverlay(
   }
   for (const auto & lane : lanes) {
     const auto rgba = roleColor(lane.role);
-    const cv::Scalar color(
-      rgba[2] * 255, rgba[1] * 255, rgba[0] * 255);
+    const cv::Scalar color(rgba[2] * 255, rgba[1] * 255, rgba[0] * 255);
     for (size_t i = 1; i < lane.polyline.size(); ++i) {
       const cv::Point p0(
-        static_cast<int>(lane.polyline[i - 1].x()),
-        static_cast<int>(lane.polyline[i - 1].y()));
+        static_cast<int>(lane.polyline[i - 1].x()), static_cast<int>(lane.polyline[i - 1].y()));
       const cv::Point p1(
-        static_cast<int>(lane.polyline[i].x()),
-        static_cast<int>(lane.polyline[i].y()));
+        static_cast<int>(lane.polyline[i].x()), static_cast<int>(lane.polyline[i].y()));
       cv::line(overlay, p0, p1, color, 2);
     }
   }
   for (const auto & merge : merges) {
     const cv::Point c(
-      static_cast<int>(merge.merge_point.x()),
-      static_cast<int>(merge.merge_point.y()));
+      static_cast<int>(merge.merge_point.x()), static_cast<int>(merge.merge_point.y()));
     cv::circle(overlay, c, 8, cv::Scalar(0, 0, 255), -1);
   }
   return overlay;

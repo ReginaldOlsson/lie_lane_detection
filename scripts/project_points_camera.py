@@ -21,13 +21,12 @@ import numpy as np
 from matplotlib.patches import Polygon
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
-
 # Manual IPM: axis-aligned src rectangle (BL, BR, TR, TL) — matches boreas_calib.cpp
 DEFAULT_SRC_PX = [
-    (500.0, 2048.0),   # BL
+    (500.0, 2048.0),  # BL
     (1948.0, 2048.0),  # BR
     (1948.0, 1147.0),  # TR
-    (500.0, 1147.0),   # TL
+    (500.0, 1147.0),  # TL
 ]
 CORNER_NAMES = ["BL", "BR", "TR", "TL"]
 
@@ -54,7 +53,9 @@ def load_boreas_calib(calib_dir: Path) -> tuple[np.ndarray, np.ndarray, int, int
     return p, t, w, h
 
 
-def lidar_ground_to_image(p: np.ndarray, t: np.ndarray, x_fwd: float, y_left: float) -> tuple[float, float] | None:
+def lidar_ground_to_image(
+    p: np.ndarray, t: np.ndarray, x_fwd: float, y_left: float
+) -> tuple[float, float] | None:
     p_lidar = np.array([x_fwd, y_left, 0.0, 1.0], dtype=np.float64)
     p_cam = t @ p_lidar
     uvw = p @ p_cam
@@ -64,7 +65,9 @@ def lidar_ground_to_image(p: np.ndarray, t: np.ndarray, x_fwd: float, y_left: fl
     return float(uvw[0] / w), float(uvw[1] / w)
 
 
-def image_to_lidar_ground(p: np.ndarray, t: np.ndarray, u: float, v: float) -> tuple[float, float] | None:
+def image_to_lidar_ground(
+    p: np.ndarray, t: np.ndarray, u: float, v: float
+) -> tuple[float, float] | None:
     """Same 2×2 solve as boreasImageToLidarGround in boreas_calib.cpp."""
     m = p @ t
     m00, m01, m03 = m[0, 0], m[0, 1], m[0, 3]
@@ -94,7 +97,9 @@ def camera_center_lidar(t: np.ndarray) -> np.ndarray:
     return c_h[:3]
 
 
-def pixel_ray_lidar(p: np.ndarray, t: np.ndarray, u: float, v: float) -> tuple[np.ndarray, np.ndarray]:
+def pixel_ray_lidar(
+    p: np.ndarray, t: np.ndarray, u: float, v: float
+) -> tuple[np.ndarray, np.ndarray]:
     """Ray origin (camera center) and unit direction in lidar frame."""
     k = p[:3, :3]
     t_inv = np.linalg.inv(t)
@@ -328,8 +333,14 @@ def plot_scene(
     ax2d.plot(roi[:, 0], roi[:, 1], color="yellow", linewidth=2, label="src ROI")
     for c in corners:
         ax2d.scatter(c["u"], c["v"], c="cyan", s=40, zorder=5)
-        ax2d.text(c["u"] + 20, c["v"], c["name"], color="white", fontsize=9,
-                  bbox=dict(facecolor="black", alpha=0.5, pad=1))
+        ax2d.text(
+            c["u"] + 20,
+            c["v"],
+            c["name"],
+            color="white",
+            fontsize=9,
+            bbox=dict(facecolor="black", alpha=0.5, pad=1),
+        )
     ax2d.set_title("Rectified camera image + src trapezoid")
     ax2d.set_xlabel("u (px)")
     ax2d.set_ylabel("v (px)")
@@ -337,7 +348,9 @@ def plot_scene(
 
     # --- 3D: image plane with texture ---
     xx, yy, zz, facecolors = sample_image_plane_mesh(p, t, image_bgr, depth_cam_m=depth_cam)
-    ax3d.plot_surface(xx, yy, zz, rstride=1, cstride=1, facecolors=facecolors, shade=False, alpha=0.85)
+    ax3d.plot_surface(
+        xx, yy, zz, rstride=1, cstride=1, facecolors=facecolors, shade=False, alpha=0.85
+    )
 
     # Image-plane ROI corners at same depth
     plane_corners = []
@@ -351,7 +364,14 @@ def plot_scene(
         plane_corners.append(lidar_to_plot_xyz(p_lidar[0], p_lidar[1], p_lidar[2]))
     plane_corners = np.array(plane_corners)
     roi_closed = np.vstack([plane_corners, plane_corners[0]])
-    ax3d.plot(roi_closed[:, 0], roi_closed[:, 1], roi_closed[:, 2], color="yellow", linewidth=2.5, label="src ROI (image plane)")
+    ax3d.plot(
+        roi_closed[:, 0],
+        roi_closed[:, 1],
+        roi_closed[:, 2],
+        color="yellow",
+        linewidth=2.5,
+        label="src ROI (image plane)",
+    )
 
     # Ground plane
     gx = np.linspace(-8, 8, 10)
@@ -361,7 +381,9 @@ def plot_scene(
     ax3d.plot_surface(gxx, gyy, gzz, color="gray", alpha=0.15, shade=False)
 
     # Camera
-    ax3d.scatter(c_plot[0], c_plot[1], c_plot[2], color="black", s=80, marker="^", label="camera center")
+    ax3d.scatter(
+        c_plot[0], c_plot[1], c_plot[2], color="black", s=80, marker="^", label="camera center"
+    )
 
     # Dst corners on camera XZ plane, drawn in lidar frame for 3D context.
     t_inv = np.linalg.inv(t)
@@ -391,7 +413,14 @@ def plot_scene(
 
         # Full dst footprint on ground (BL → BR → TR → TL).
         gq = np.vstack([ground_plot, ground_plot[0]])
-        ax3d.plot(gq[:, 0], gq[:, 1], gq[:, 2], color="magenta", linewidth=2.5, label="dst footprint (ground)")
+        ax3d.plot(
+            gq[:, 0],
+            gq[:, 1],
+            gq[:, 2],
+            color="magenta",
+            linewidth=2.5,
+            label="dst footprint (ground)",
+        )
         verts = [list(zip(gq[:, 0], gq[:, 1], gq[:, 2]))]
         ax3d.add_collection3d(Poly3DCollection(verts, color="magenta", alpha=0.12))
 

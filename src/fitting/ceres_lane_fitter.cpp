@@ -1,13 +1,13 @@
 #include "lie_lane_detection/fitting/ceres_lane_fitter.hpp"
 
-#include <algorithm>
-#include <cmath>
-#include <vector>
+#include "lie_lane_detection/fitting/observation_association.hpp"
 
 #include <ceres/ceres.h>
 #include <ceres/loss_function.h>
 
-#include "lie_lane_detection/fitting/observation_association.hpp"
+#include <algorithm>
+#include <cmath>
+#include <vector>
 
 namespace lie_lane_detection
 {
@@ -21,8 +21,13 @@ public:
   EdgeObservationFunctor(
     double px, double py, double orientation, double soft_w, double len_w, double heading_w,
     TemplateCurve * curve)
-  : px_(px), py_(py), orientation_(orientation), soft_w_(soft_w), len_w_(len_w),
-    heading_w_(heading_w), curve_(curve)
+  : px_(px),
+    py_(py),
+    orientation_(orientation),
+    soft_w_(soft_w),
+    len_w_(len_w),
+    heading_w_(heading_w),
+    curve_(curve)
   {
   }
 
@@ -68,11 +73,16 @@ class LineSegmentFunctor
 {
 public:
   LineSegmentFunctor(
-    double x1, double y1, double x2, double y2,
-    double soft_w, double len_w, double heading_w,
+    double x1, double y1, double x2, double y2, double soft_w, double len_w, double heading_w,
     TemplateCurve * curve)
-  : x1_(x1), y1_(y1), x2_(x2), y2_(y2),
-    soft_w_(soft_w), len_w_(len_w), heading_w_(heading_w), curve_(curve)
+  : x1_(x1),
+    y1_(y1),
+    x2_(x2),
+    y2_(y2),
+    soft_w_(soft_w),
+    len_w_(len_w),
+    heading_w_(heading_w),
+    curve_(curve)
   {
   }
 
@@ -129,9 +139,7 @@ CeresLaneFitter::CeresLaneFitter(const PipelineParams & params, TemplateCurve * 
 }
 
 bool CeresLaneFitter::optimizeXi(
-  XiVector & xi,
-  const std::vector<EdgePoint> & points,
-  const std::vector<double> & weights) const
+  XiVector & xi, const std::vector<EdgePoint> & points, const std::vector<double> & weights) const
 {
   ObservationAssociation assoc(params_, template_curve_);
   std::vector<AssociatedEdge> associated;
@@ -143,7 +151,8 @@ bool CeresLaneFitter::optimizeXi(
     AssociatedEdge a;
     a.edge = points[i];
     a.soft_weight = i < weights.size() ? weights[i] : 1.0;
-    a.length_weight = std::sqrt(std::max(points[i].magnitude, params_.ceres_length_weight_floor_px));
+    a.length_weight =
+      std::sqrt(std::max(points[i].magnitude, params_.ceres_length_weight_floor_px));
     double t = 0.0;
     template_curve_->distanceToCurve(xi, Vec2(points[i].x, points[i].y), &t);
     a.t_near = t;
@@ -153,8 +162,7 @@ bool CeresLaneFitter::optimizeXi(
 }
 
 bool CeresLaneFitter::optimizeXiFromEdges(
-  XiVector & xi,
-  const std::vector<AssociatedEdge> & edges) const
+  XiVector & xi, const std::vector<AssociatedEdge> & edges) const
 {
   if (edges.empty() || template_curve_ == nullptr) {
     return false;
@@ -171,9 +179,9 @@ bool CeresLaneFitter::optimizeXiFromEdges(
     for (const auto & a : edges) {
       ceres::CostFunction * cost =
         new ceres::NumericDiffCostFunction<EdgeObservationFunctor, ceres::CENTRAL, 2, 5>(
-        new EdgeObservationFunctor(
-          a.edge.x, a.edge.y, a.edge.orientation, a.soft_weight, a.length_weight,
-          params_.ceres_heading_weight, template_curve_));
+          new EdgeObservationFunctor(
+            a.edge.x, a.edge.y, a.edge.orientation, a.soft_weight, a.length_weight,
+            params_.ceres_heading_weight, template_curve_));
       problem.AddResidualBlock(cost, loss, xi_params);
     }
 
@@ -203,8 +211,7 @@ bool CeresLaneFitter::optimizeXiFromEdges(
 }
 
 bool CeresLaneFitter::optimizeXiFromLines(
-  XiVector & xi,
-  const std::vector<AssociatedLine> & lines) const
+  XiVector & xi, const std::vector<AssociatedLine> & lines) const
 {
   if (lines.empty() || template_curve_ == nullptr) {
     return false;
@@ -221,9 +228,9 @@ bool CeresLaneFitter::optimizeXiFromLines(
     for (const auto & a : lines) {
       ceres::CostFunction * cost =
         new ceres::NumericDiffCostFunction<LineSegmentFunctor, ceres::CENTRAL, 4, 5>(
-        new LineSegmentFunctor(
-          a.segment.x1, a.segment.y1, a.segment.x2, a.segment.y2,
-          a.soft_weight, a.length_weight, params_.ceres_heading_weight, template_curve_));
+          new LineSegmentFunctor(
+            a.segment.x1, a.segment.y1, a.segment.x2, a.segment.y2, a.soft_weight, a.length_weight,
+            params_.ceres_heading_weight, template_curve_));
       problem.AddResidualBlock(cost, loss, xi_params);
     }
 
@@ -253,8 +260,7 @@ bool CeresLaneFitter::optimizeXiFromLines(
 }
 
 LaneHypothesis CeresLaneFitter::fitEdges(
-  const LaneHypothesis & seed,
-  const std::vector<EdgePoint> & edges) const
+  const LaneHypothesis & seed, const std::vector<EdgePoint> & edges) const
 {
   LaneHypothesis out = seed;
   ObservationAssociation assoc(params_, template_curve_);
@@ -269,9 +275,9 @@ LaneHypothesis CeresLaneFitter::fitEdges(
     out.polyline = template_curve_->samplePolyline(out.xi);
     int inliers = 0;
     for (const auto & a : candidates) {
-      if (template_curve_->distanceToCurve(out.xi, Vec2(a.edge.x, a.edge.y)) <
-        params_.inlier_threshold_px)
-      {
+      if (
+        template_curve_->distanceToCurve(out.xi, Vec2(a.edge.x, a.edge.y)) <
+        params_.inlier_threshold_px) {
         ++inliers;
       }
     }
@@ -286,8 +292,7 @@ LaneHypothesis CeresLaneFitter::fitEdges(
 }
 
 LaneHypothesis CeresLaneFitter::fitLines(
-  const LaneHypothesis & seed,
-  const std::vector<LineSegment> & lines) const
+  const LaneHypothesis & seed, const std::vector<LineSegment> & lines) const
 {
   LaneHypothesis out = seed;
   ObservationAssociation assoc(params_, template_curve_);
@@ -305,9 +310,8 @@ LaneHypothesis CeresLaneFitter::fitLines(
     out.polyline = template_curve_->samplePolyline(out.xi);
     int inliers = 0;
     for (const auto & a : candidates) {
-      if (template_curve_->segmentDistanceToCurve(out.xi, a.segment) <
-        params_.inlier_threshold_px)
-      {
+      if (
+        template_curve_->segmentDistanceToCurve(out.xi, a.segment) < params_.inlier_threshold_px) {
         ++inliers;
       }
     }

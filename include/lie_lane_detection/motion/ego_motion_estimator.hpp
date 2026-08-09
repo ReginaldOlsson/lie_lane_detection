@@ -1,8 +1,8 @@
 #pragma once
 
-#include <opencv2/core.hpp>
-
 #include "lie_lane_detection/core/types.hpp"
+
+#include <opencv2/core.hpp>
 
 namespace lie_lane_detection
 {
@@ -35,25 +35,22 @@ public:
   explicit EgoMotionEstimator(EgoMotionEstimatorParams params = EgoMotionEstimatorParams{});
 
   void reset();
-  void setParams(const EgoMotionEstimatorParams & params) {params_ = params;}
+  void setParams(const EgoMotionEstimatorParams & params) { params_ = params; }
 
   /// Update with a new BGR frame; returns motion since the previous frame.
   EgoMotionEstimate update(const cv::Mat & image_bgr, double dt = 0.0);
 
   /// Integrated lateral image shift (decayed) for IPM ROI nudging.
-  double integratedImageShiftX() const {return integrated_image_x_;}
+  double integratedImageShiftX() const { return integrated_image_x_; }
 
-  const EgoMotionEstimate & lastEstimate() const {return last_;}
+  const EgoMotionEstimate & lastEstimate() const { return last_; }
 
   /// Shift ipm_src_points x-coordinates by integrated ego motion.
   void applyIntegratedShiftToIpmRoi(PipelineParams & params, int cols, int rows) const;
 
   /// Map per-frame image lateral motion to BEV lateral delta.
   static double imageDeltaToBevLateral(
-    double delta_image_x,
-    const PipelineParams & params,
-    int bev_cols,
-    double scale = 1.0);
+    double delta_image_x, const PipelineParams & params, int bev_cols, double scale = 1.0);
 
 private:
   static double robustMedian(std::vector<double> values);

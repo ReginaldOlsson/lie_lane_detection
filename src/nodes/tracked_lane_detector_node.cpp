@@ -1,22 +1,23 @@
-#include <chrono>
-#include <memory>
-#include <sstream>
-#include <string>
+#include "lie_lane_detection/motion/ego_motion_estimator.hpp"
+#include "lie_lane_detection/nodes/node_params.hpp"
+#include "lie_lane_detection/pipeline/detection_common.hpp"
+#include "lie_lane_detection/pipeline/lane_detection_runner.hpp"
+#include "lie_lane_detection/preprocessing/auto_frontal_ipm.hpp"
+#include "lie_lane_detection/tracking/lane_tracker.hpp"
+#include "lie_lane_detection/visualization/visualization.hpp"
 
 #include <cv_bridge/cv_bridge.hpp>
 #include <image_transport/image_transport.hpp>
 #include <rclcpp/rclcpp.hpp>
+
+#include <sensor_msgs/msg/image.hpp>
 #include <std_msgs/msg/string.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
-#include <sensor_msgs/msg/image.hpp>
 
-#include "lie_lane_detection/nodes/node_params.hpp"
-#include "lie_lane_detection/preprocessing/auto_frontal_ipm.hpp"
-#include "lie_lane_detection/motion/ego_motion_estimator.hpp"
-#include "lie_lane_detection/pipeline/lane_detection_runner.hpp"
-#include "lie_lane_detection/pipeline/detection_common.hpp"
-#include "lie_lane_detection/tracking/lane_tracker.hpp"
-#include "lie_lane_detection/visualization/visualization.hpp"
+#include <chrono>
+#include <memory>
+#include <sstream>
+#include <string>
 
 namespace lie_lane_detection
 {
@@ -34,7 +35,8 @@ public:
     params_(loadTrackedParams(*this)),
     frame_id_(declare_parameter<std::string>("frame_id", "camera_front"))
   {
-    const std::string image_topic = declare_parameter<std::string>("image_topic", "/camera/image_raw");
+    const std::string image_topic =
+      declare_parameter<std::string>("image_topic", "/camera/image_raw");
     use_lane_tracking_ = declare_parameter<bool>("use_lane_tracking", false);
     const int track_main_interval = declare_parameter<int>("track_main_interval", 5);
     publish_raw_ = declare_parameter<bool>("publish_raw", true);
@@ -45,8 +47,7 @@ public:
       tp.main_detect_interval = track_main_interval;
       tp.max_tracks = declare_parameter<int>("track_max_tracks", 6);
       tp.min_spawn_inlier_ratio = declare_parameter<double>("track_min_spawn_inlier", 0.45);
-      tp.max_stripe_lateral_delta_px =
-        declare_parameter<double>("track_max_stripe_delta_px", 5.0);
+      tp.max_stripe_lateral_delta_px = declare_parameter<double>("track_max_stripe_delta_px", 5.0);
       tp.fixed_camera = declare_parameter<bool>("track_fixed_camera", true);
       tp.snap_on_main = declare_parameter<bool>("track_snap_on_main", true);
       lane_tracker_.setParams(tp);
@@ -86,19 +87,15 @@ public:
     bev_pub_ = image_transport::create_publisher(this, "/lanes/debug/bev");
 
     image_sub_ = image_transport::create_subscription(
-      this, image_topic,
-      std::bind(&TrackedLaneDetectorNode::onImage, this, std::placeholders::_1),
+      this, image_topic, std::bind(&TrackedLaneDetectorNode::onImage, this, std::placeholders::_1),
       "raw", rmw_qos_profile_sensor_data);
 
     RCLCPP_WARN(
       get_logger(),
       "tracked_lane_detector_node is deprecated; use frontal_ipm_node + bev_lane_detector_node");
     RCLCPP_INFO(
-      get_logger(),
-      "Lane detector on %s | tracking=%s | publish_raw=%s",
-      image_topic.c_str(),
-      use_lane_tracking_ ? "on" : "off",
-      publish_raw_ ? "true" : "false");
+      get_logger(), "Lane detector on %s | tracking=%s | publish_raw=%s", image_topic.c_str(),
+      use_lane_tracking_ ? "on" : "off", publish_raw_ ? "true" : "false");
     RCLCPP_INFO(get_logger(), "  detect: /lanes/detect/{overlay,frontal_overlay,stats,markers}");
     if (use_lane_tracking_) {
       RCLCPP_INFO(get_logger(), "  track:  /lanes/track/{overlay,frontal_overlay,stats,markers}");
@@ -110,8 +107,7 @@ public:
 
 private:
   void publishCvImage(
-    const image_transport::Publisher & pub,
-    const cv::Mat & mat,
+    const image_transport::Publisher & pub, const cv::Mat & mat,
     const std_msgs::msg::Header & header)
   {
     if (mat.empty()) {
@@ -125,43 +121,32 @@ private:
   {
     std::ostringstream oss;
     oss << "mode=raw"
-        << " lanes=" << raw.lanes.size()
-        << " total_ms=" << total_ms
+        << " lanes=" << raw.lanes.size() << " total_ms=" << total_ms
         << " detect_ms=" << raw.elapsed_ms;
     return oss.str();
   }
 
   static std::string formatTrackStats(
-    const TrackedFrameResult & tracked,
-    double total_ms,
-    const VanishingPointEstimate & vp,
+    const TrackedFrameResult & tracked, double total_ms, const VanishingPointEstimate & vp,
     const EgoMotionEstimate & ego)
   {
     std::ostringstream oss;
     oss << "mode=" << (tracked.ran_main_detector ? "main" : "stripe")
-        << " lanes=" << tracked.lanes.size()
-        << " tracks=" << tracked.track_count
-        << " total_ms=" << total_ms
-        << " track_ms=" << tracked.total_ms
-        << " predict_ms=" << tracked.predict_ms
-        << " stripe_ms=" << tracked.stripe_ms
-        << " main_ms=" << tracked.main_ms
-        << " vp=(" << vp.x << "," << vp.y << ")"
+        << " lanes=" << tracked.lanes.size() << " tracks=" << tracked.track_count
+        << " total_ms=" << total_ms << " track_ms=" << tracked.total_ms
+        << " predict_ms=" << tracked.predict_ms << " stripe_ms=" << tracked.stripe_ms
+        << " main_ms=" << tracked.main_ms << " vp=(" << vp.x << "," << vp.y << ")"
         << " vp_filt=" << (vp.used_temporal_prior ? 1 : 0);
     if (ego.valid) {
-      oss << " ego_dx=" << ego.delta_image_x
-          << " ego_bev=" << ego.delta_bev_x
+      oss << " ego_dx=" << ego.delta_image_x << " ego_bev=" << ego.delta_bev_x
           << " ego_yaw=" << ego.delta_yaw_rad;
     }
     return oss.str();
   }
 
   void publishDetection(
-    const BevDetectionResult & result,
-    double detect_ms,
-    const std_msgs::msg::Header & header,
-    const cv::Mat & frontal_bgr,
-    const cv::Mat & H_img2bev)
+    const BevDetectionResult & result, double detect_ms, const std_msgs::msg::Header & header,
+    const cv::Mat & frontal_bgr, const cv::Mat & H_img2bev)
   {
     detect_marker_pub_->publish(lanesToMarkers(result.lanes, frame_id_, header.stamp));
     detect_merge_pub_->publish(mergesToMarkers(result.merges, frame_id_, header.stamp));
@@ -195,8 +180,8 @@ private:
     }
 
     if (use_lane_tracking_ && ego.valid) {
-      ego.delta_bev_x = EgoMotionEstimator::imageDeltaToBevLateral(
-        ego.delta_image_x, hg.params, hg.bev.cols);
+      ego.delta_bev_x =
+        EgoMotionEstimator::imageDeltaToBevLateral(ego.delta_image_x, hg.params, hg.bev.cols);
       lane_tracker_.compensateEgoMotion(ego.delta_bev_x);
     }
 
@@ -211,13 +196,11 @@ private:
       const auto t_det0 = std::chrono::steady_clock::now();
       const BevDetectionResult det = detectLanesInBev(bev_display, bev_params);
       const auto t_det1 = std::chrono::steady_clock::now();
-      const double detect_ms =
-        std::chrono::duration<double, std::milli>(t_det1 - t_det0).count();
+      const double detect_ms = std::chrono::duration<double, std::milli>(t_det1 - t_det0).count();
       publishDetection(det, detect_ms, msg->header, cv_ptr->image, hg.H_img2bev);
       RCLCPP_INFO_THROTTLE(
-        get_logger(), *get_clock(), 1000,
-        "DETECT | %zu lanes | %.1f ms",
-        det.lanes.size(), detect_ms);
+        get_logger(), *get_clock(), 1000, "DETECT | %zu lanes | %.1f ms", det.lanes.size(),
+        detect_ms);
       return;
     }
 
@@ -239,8 +222,8 @@ private:
       raw_merge_pub_->publish(mergesToMarkers(raw_result.merges, frame_id_, stamp));
       publishCvImage(raw_overlay_pub_, raw_result.overlay, msg->header);
       publishCvImage(raw_edges_pub_, raw_result.edges, msg->header);
-      const cv::Mat raw_frontal = drawFrontalOverlay(
-        cv_ptr->image, raw_result.lanes, raw_result.merges, hg.H_img2bev);
+      const cv::Mat raw_frontal =
+        drawFrontalOverlay(cv_ptr->image, raw_result.lanes, raw_result.merges, hg.H_img2bev);
       publishCvImage(raw_frontal_pub_, raw_frontal, msg->header);
       std_msgs::msg::String raw_stats;
       raw_stats.data = formatRawStats(raw_result, raw_total_ms_);
@@ -251,8 +234,8 @@ private:
     track_merge_pub_->publish(mergesToMarkers(tracked.merges, frame_id_, stamp));
     publishCvImage(track_overlay_pub_, tracked.overlay, msg->header);
     publishCvImage(track_edges_pub_, tracked.edges, msg->header);
-    const cv::Mat track_frontal = drawFrontalOverlay(
-      cv_ptr->image, tracked.lanes, tracked.merges, hg.H_img2bev);
+    const cv::Mat track_frontal =
+      drawFrontalOverlay(cv_ptr->image, tracked.lanes, tracked.merges, hg.H_img2bev);
     publishCvImage(track_frontal_pub_, track_frontal, msg->header);
 
     const auto t1 = std::chrono::steady_clock::now();
@@ -263,12 +246,9 @@ private:
     track_stats_pub_->publish(track_stats);
 
     RCLCPP_INFO_THROTTLE(
-      get_logger(), *get_clock(), 1000,
-      "TRACK %s | %zu lanes | %.1f ms | RAW %zu lanes | %.1f ms",
-      tracked.ran_main_detector ? "MAIN" : "STRIPE",
-      tracked.lanes.size(), tracked.total_ms,
-      publish_raw_ ? raw_result.lanes.size() : 0,
-      publish_raw_ ? raw_total_ms_ : 0.0);
+      get_logger(), *get_clock(), 1000, "TRACK %s | %zu lanes | %.1f ms | RAW %zu lanes | %.1f ms",
+      tracked.ran_main_detector ? "MAIN" : "STRIPE", tracked.lanes.size(), tracked.total_ms,
+      publish_raw_ ? raw_result.lanes.size() : 0, publish_raw_ ? raw_total_ms_ : 0.0);
   }
 
   PipelineParams params_;

@@ -1,5 +1,11 @@
 #include "lie_lane_detection/voting/lie_hough_voter.hpp"
 
+#include "lie_lane_detection/common/parallel.hpp"
+#include "lie_lane_detection/voting/sparse_accumulator.hpp"
+
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
+
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
@@ -7,15 +13,10 @@
 #include <utility>
 #include <vector>
 
-#include <opencv2/core.hpp>
-#include <opencv2/imgproc.hpp>
-
-#include "lie_lane_detection/common/parallel.hpp"
-#include "lie_lane_detection/voting/sparse_accumulator.hpp"
-
 #ifdef LIE_HAS_CUDA
-#include <cstdlib>
 #include "lie_lane_detection/voting/cuda_voting.hpp"
+
+#include <cstdlib>
 #endif
 
 namespace lie_lane_detection
@@ -27,15 +28,15 @@ LieHoughVoter::LieHoughVoter(const PipelineParams & params, TemplateCurve * temp
 }
 
 void LieHoughVoter::binIndicesToXiComponents(
-  int ix, int iy, int io, int ik, int is,
-  double & vx, double & vy, double & omega, double & kappa, double & sigma) const
+  int ix, int iy, int io, int ik, int is, double & vx, double & vy, double & omega, double & kappa,
+  double & sigma) const
 {
   const auto lerp = [](int i, int n, double vmin, double vmax) {
-      if (n <= 1) {
-        return vmin;
-      }
-      return vmin + (vmax - vmin) * static_cast<double>(i) / static_cast<double>(n - 1);
-    };
+    if (n <= 1) {
+      return vmin;
+    }
+    return vmin + (vmax - vmin) * static_cast<double>(i) / static_cast<double>(n - 1);
+  };
 
   vx = lerp(ix, params_.se2_vx_bins, params_.se2_vx_min, params_.se2_vx_max);
   vy = lerp(iy, params_.se2_vy_bins, params_.se2_vy_min, params_.se2_vy_max);
@@ -72,11 +73,7 @@ inline int flatBinIndex(int ix, int iy, int io, int vx_bins, int vy_bins)
   return ix + vy_bins * vx_bins * io + vx_bins * iy;
 }
 
-inline int vxBinForX(
-  double x,
-  int vx_bins,
-  double vx_min,
-  double vx_max)
+inline int vxBinForX(double x, int vx_bins, double vx_min, double vx_max)
 {
   if (vx_bins <= 1) {
     return 0;
@@ -88,8 +85,7 @@ inline int vxBinForX(
 
 inline int vxSearchRadius(double vote_threshold_px, int vx_bins, double vx_min, double vx_max)
 {
-  const double bin_width =
-    (vx_max - vx_min) / static_cast<double>(std::max(vx_bins - 1, 1));
+  const double bin_width = (vx_max - vx_min) / static_cast<double>(std::max(vx_bins - 1, 1));
   return std::max(1, static_cast<int>(std::ceil(vote_threshold_px / bin_width)) + 1);
 }
 
@@ -99,12 +95,12 @@ inline int vxSearchRadius(double vote_threshold_px, int vx_bins, double vx_min, 
 bool cudaVotingEnabled()
 {
   static const bool enabled = [] {
-      const char * disable = std::getenv("LIE_LANE_DISABLE_CUDA");
-      if (disable && disable[0] != '\0' && disable[0] != '0') {
-        return false;
-      }
-      return cuda::isAvailable();
-    }();
+    const char * disable = std::getenv("LIE_LANE_DISABLE_CUDA");
+    if (disable && disable[0] != '\0' && disable[0] != '0') {
+      return false;
+    }
+    return cuda::isAvailable();
+  }();
   return enabled;
 }
 #endif
@@ -112,8 +108,7 @@ bool cudaVotingEnabled()
 }  // namespace
 
 std::vector<LaneHypothesis> LieHoughVoter::vote(
-  const std::vector<EdgePoint> & edges,
-  cv::Mat * hough_debug_slice)
+  const std::vector<EdgePoint> & edges, cv::Mat * hough_debug_slice)
 {
   const int vx_bins = params_.se2_vx_bins;
   const int vy_bins = params_.se2_vy_bins;
@@ -131,11 +126,7 @@ std::vector<LaneHypothesis> LieHoughVoter::vote(
   const int is_mid = std::max(0, params_.sigma_bins / 2);
   const int is_hi = std::max(0, params_.sigma_bins - 1);
   const std::vector<std::pair<int, int>> deform_presets = {
-    {ik_mid, is_mid},
-    {ik_hi, is_mid},
-    {0, is_mid},
-    {ik_mid, is_hi},
-    {ik_mid, 0},
+    {ik_mid, is_mid}, {ik_hi, is_mid}, {0, is_mid}, {ik_mid, is_hi}, {ik_mid, 0},
   };
 
   std::vector<XiVector> xi_stage_a(static_cast<size_t>(se2_cells));
@@ -172,15 +163,15 @@ std::vector<LaneHypothesis> LieHoughVoter::vote(
   }
 
   auto minDistanceSq = [&](int ix, int iy, int io, const Vec2 & p) {
-      const int idx = flatBinIndex(ix, iy, io, vx_bins, vy_bins);
-      const Vec2 pl = se2_inv_lut[static_cast<size_t>(idx)] * p;
-      double best = std::numeric_limits<double>::max();
-      for (const auto & [kappa, sigma] : preset_ks) {
-        const double d = template_curve_->distanceInLocalFrame(pl.x(), pl.y(), kappa, sigma);
-        best = std::min(best, d * d);
-      }
-      return best;
-    };
+    const int idx = flatBinIndex(ix, iy, io, vx_bins, vy_bins);
+    const Vec2 pl = se2_inv_lut[static_cast<size_t>(idx)] * p;
+    double best = std::numeric_limits<double>::max();
+    for (const auto & [kappa, sigma] : preset_ks) {
+      const double d = template_curve_->distanceInLocalFrame(pl.x(), pl.y(), kappa, sigma);
+      best = std::min(best, d * d);
+    }
+    return best;
+  };
 
   const double vote_thresh = params_.vote_threshold_px;
   const double vote_thresh_sq = vote_thresh * vote_thresh;
@@ -191,13 +182,13 @@ std::vector<LaneHypothesis> LieHoughVoter::vote(
   const double soft_sigma = std::max(params_.soft_vote_sigma_px, 1e-3);
   const double inv_two_sigma_sq = 1.0 / (2.0 * soft_sigma * soft_sigma);
   auto voteWeight = [&](double mag, double d_sq) {
-      return soft_voting ? mag * std::exp(-d_sq * inv_two_sigma_sq) : mag;
-    };
+    return soft_voting ? mag * std::exp(-d_sq * inv_two_sigma_sq) : mag;
+  };
 
   auto merge_accum = [](std::vector<double> a, const std::vector<double> & b) {
-      DenseAccumulator::mergeInPlace(a, b);
-      return a;
-    };
+    DenseAccumulator::mergeInPlace(a, b);
+    return a;
+  };
 
   // Stage A: localized SE(2) voting. Prefer the GPU kernel when available;
   // otherwise use the TBB parallel_reduce below. Both produce the same accum.
@@ -281,13 +272,13 @@ std::vector<LaneHypothesis> LieHoughVoter::vote(
               continue;
             }
             for (int iy = 0; iy < vy_bins; ++iy) {
-            for (int io = 0; io < omega_bins; ++io) {
-              const int idx = flatBinIndex(ix, iy, io, vx_bins, vy_bins);
-              const double d_sq = minDistanceSq(ix, iy, io, p);
-              if (d_sq < vote_thresh_sq) {
-                local[static_cast<size_t>(idx)] += voteWeight(edge.magnitude, d_sq);
+              for (int io = 0; io < omega_bins; ++io) {
+                const int idx = flatBinIndex(ix, iy, io, vx_bins, vy_bins);
+                const double d_sq = minDistanceSq(ix, iy, io, p);
+                if (d_sq < vote_thresh_sq) {
+                  local[static_cast<size_t>(idx)] += voteWeight(edge.magnitude, d_sq);
+                }
               }
-            }
             }
           }
         }
@@ -318,8 +309,8 @@ std::vector<LaneHypothesis> LieHoughVoter::vote(
   }
 
   std::sort(se2_peaks.begin(), se2_peaks.end(), [](const SE2Peak & a, const SE2Peak & b) {
-      return a.votes > b.votes;
-    });
+    return a.votes > b.votes;
+  });
 
   std::vector<SE2Peak> selected_se2;
   selected_se2.reserve(static_cast<size_t>(params_.top_k_peaks));
@@ -386,22 +377,21 @@ std::vector<LaneHypothesis> LieHoughVoter::vote(
         }
 
         auto tallyVotes = [&](double kappa, double sigma) {
-            double votes = 0.0;
-            for (const auto & le : local_edges) {
-              const double d = template_curve_->distanceInLocalFrame(le.a, le.b, kappa, sigma);
-              const double d_sq = d * d;
-              if (d_sq < vote_thresh_sq) {
-                votes += voteWeight(le.mag, d_sq);
-              }
+          double votes = 0.0;
+          for (const auto & le : local_edges) {
+            const double d = template_curve_->distanceInLocalFrame(le.a, le.b, kappa, sigma);
+            const double d_sq = d * d;
+            if (d_sq < vote_thresh_sq) {
+              votes += voteWeight(le.mag, d_sq);
             }
-            return votes;
-          };
+          }
+          return votes;
+        };
 
         int best_ik = 0;
         int best_is = 0;
         std::vector<std::pair<XiVector, double>> vote_bins;
-        vote_bins.reserve(
-          static_cast<size_t>(params_.kappa_bins * params_.sigma_bins));
+        vote_bins.reserve(static_cast<size_t>(params_.kappa_bins * params_.sigma_bins));
         for (int ik = 0; ik < params_.kappa_bins; ++ik) {
           for (int is = 0; is < params_.sigma_bins; ++is) {
             XiVector xi = binToXi(se2_peak.ix, se2_peak.iy, se2_peak.io, ik, is);
@@ -458,9 +448,9 @@ std::vector<LaneHypothesis> LieHoughVoter::vote(
     });
 
   std::vector<LaneHypothesis> final_hyps;
-  std::sort(hypotheses.begin(), hypotheses.end(), [](const LaneHypothesis & a, const LaneHypothesis & b) {
-      return a.score > b.score;
-    });
+  std::sort(
+    hypotheses.begin(), hypotheses.end(),
+    [](const LaneHypothesis & a, const LaneHypothesis & b) { return a.score > b.score; });
   for (const auto & hyp : hypotheses) {
     bool keep = true;
     for (const auto & kept : final_hyps) {

@@ -1,9 +1,10 @@
-#include <cmath>
+#include "lie_lane_detection/preprocessing/boreas_calib.hpp"
 
-#include <gtest/gtest.h>
 #include <opencv2/core.hpp>
 
-#include "lie_lane_detection/preprocessing/boreas_calib.hpp"
+#include <gtest/gtest.h>
+
+#include <cmath>
 
 namespace lie_lane_detection
 {
@@ -13,15 +14,14 @@ namespace
 BoreasCalib syntheticBoreasCalib()
 {
   BoreasCalib calib;
-  calib.P = (cv::Mat_<double>(3, 4) <<
-    1440.1585693359375, 0.0, 1218.227729041253, 0.0,
-    0.0, 1446.9215087890625, 1045.272153129241, 0.0,
-    0.0, 0.0, 1.0, 0.0);
-  calib.T_camera_lidar = (cv::Mat_<double>(4, 4) <<
-    0.729304194569723, -0.684189392429244, -0.000516788457270013, -0.0231487194000858,
-    -0.0128793477606882, -0.0129733964677743, -0.999832892730255, -0.229363448544232,
-    0.68406835490634, 0.729188978435215, -0.018273465581034, -0.635346228374209,
-    0.0, 0.0, 0.0, 1.0);
+  calib.P =
+    (cv::Mat_<double>(3, 4) << 1440.1585693359375, 0.0, 1218.227729041253, 0.0, 0.0,
+     1446.9215087890625, 1045.272153129241, 0.0, 0.0, 0.0, 1.0, 0.0);
+  calib.T_camera_lidar =
+    (cv::Mat_<double>(4, 4) << 0.729304194569723, -0.684189392429244, -0.000516788457270013,
+     -0.0231487194000858, -0.0128793477606882, -0.0129733964677743, -0.999832892730255,
+     -0.229363448544232, 0.68406835490634, 0.729188978435215, -0.018273465581034,
+     -0.635346228374209, 0.0, 0.0, 0.0, 1.0);
   calib.image_width = 2448;
   calib.image_height = 2048;
   return calib;

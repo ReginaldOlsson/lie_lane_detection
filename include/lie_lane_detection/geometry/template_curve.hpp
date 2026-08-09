@@ -1,8 +1,8 @@
 #pragma once
 
-#include <utility>
-
 #include "lie_lane_detection/core/types.hpp"
+
+#include <utility>
 
 namespace lie_lane_detection
 {
@@ -40,7 +40,7 @@ public:
 
   /// Local-frame forward-axis origin and span used by distanceInLocalFrame.
   /// Exposed so GPU kernels can replicate the exact template geometry.
-  double localFrameYMin() const {return y_min_;}
+  double localFrameYMin() const { return y_min_; }
   double localFrameYSpan() const
   {
     const double span = y_max_ - y_min_;

@@ -8,15 +8,15 @@ This is complementary to the current **edge-pixel → Lie-Hough** pipeline docum
 
 ## Motivation
 
-| Problem with edge-only Lie-Hough | How line-first helps |
-|----------------------------------|----------------------|
-| Every edge pixel votes → heavy accumulator, duplicate votes on thick edges | Lines collapse local edge runs into one primitive |
-| Dashed lanes produce fragmented edge clouds | Each dash ≈ one segment; grouping finds the underlying curve |
-| ω (heading) is weakly constrained by point distance alone | Each segment carries a **tangent angle** — direct ω constraint |
-| Clutter (cracks, shadows) adds spurious votes | Random short lines rarely form a **coherent bundle** under one ξ |
-| Tight curves need many κ bins | Locally straight segments + global κ fit is a natural multi-scale split |
+| Problem with edge-only Lie-Hough                                           | How line-first helps                                                    |
+| -------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Every edge pixel votes → heavy accumulator, duplicate votes on thick edges | Lines collapse local edge runs into one primitive                       |
+| Dashed lanes produce fragmented edge clouds                                | Each dash ≈ one segment; grouping finds the underlying curve            |
+| ω (heading) is weakly constrained by point distance alone                  | Each segment carries a **tangent angle** — direct ω constraint          |
+| Clutter (cracks, shadows) adds spurious votes                              | Random short lines rarely form a **coherent bundle** under one ξ        |
+| Tight curves need many κ bins                                              | Locally straight segments + global κ fit is a natural multi-scale split |
 
-The second stage answers: *given hundreds of lines, which subsets are tangent samples of the same lane curve?*
+The second stage answers: _given hundreds of lines, which subsets are tangent samples of the same lane curve?_
 
 ---
 
@@ -79,12 +79,12 @@ For template `γ(t; ξ)` in BEV (see [MATHEMATICS.md](MATHEMATICS.md)):
 **Vote score for line L and hypothesis ξ:**
 
 \[
-w(L) \cdot \mathbb{1}\big[\|p - \gamma(t^*)\| < \delta\big] \cdot \mathbb{1}\big[|\angle(d) - \angle(\tau(t^*))| < \delta_\theta\big]
+w(L) \cdot \mathbb{1}\big[\|p - \gamma(t^_)\| < \delta\big] \cdot \mathbb{1}\big[|\angle(d) - \angle(\tau(t^_))| < \delta_\theta\big]
 \]
 
 where `w(L) = length(L)` and `t* = argmin_t ‖p − γ(t)‖` (reuse `TemplateCurve::nearestPoint`).
 
-**Curve from a set of lines:** A peak in the `(κ, σ)` accumulator means *many* segments agree on the same global deformation while permitting different local `(vx, vy, ω)` along the chain — exactly the “family of lines → one curve” question.
+**Curve from a set of lines:** A peak in the `(κ, σ)` accumulator means _many_ segments agree on the same global deformation while permitting different local `(vx, vy, ω)` along the chain — exactly the “family of lines → one curve” question.
 
 **Relation to parabolic Hough (Lewis):** Lewis fits `x = ay² + by + c` in warped coordinates. Each line segment is a local linearization of that parabola. Stage 2 is a **Lie-group generalization** of “which lines belong to the same parabola?”
 
@@ -183,12 +183,12 @@ Wire into `detectLanesInBev()` as an alternate seed path before `ManifoldRansac`
 
 When implemented, compare on:
 
-| Metric | Edge-only | Line → Lie |
-|--------|-----------|------------|
-| `02_curved_highway` ω error | baseline ~0.07 | target < 0.04 |
-| `05_dashed_lanes` recall | baseline | expect ↑ |
-| Primitives / frame | ~18k edges | ~100–400 lines |
-| Stage A+B time | baseline | expect ↓ |
+| Metric                      | Edge-only      | Line → Lie     |
+| --------------------------- | -------------- | -------------- |
+| `02_curved_highway` ω error | baseline ~0.07 | target < 0.04  |
+| `05_dashed_lanes` recall    | baseline       | expect ↑       |
+| Primitives / frame          | ~18k edges     | ~100–400 lines |
+| Stage A+B time              | baseline       | expect ↓       |
 
 ---
 

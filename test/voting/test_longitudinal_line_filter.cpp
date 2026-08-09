@@ -1,8 +1,8 @@
+#include "lie_lane_detection/voting/longitudinal_line_filter.hpp"
+
 #include <gtest/gtest.h>
 
 #include <cmath>
-
-#include "lie_lane_detection/voting/longitudinal_line_filter.hpp"
 
 TEST(LongitudinalLineFilter, dropsHorizontalCrosswalkSegments)
 {

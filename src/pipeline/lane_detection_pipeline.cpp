@@ -1,7 +1,8 @@
 #include "lie_lane_detection/pipeline/lane_detection_pipeline.hpp"
 
 #include "lie_lane_detection/pipeline/lane_detection_runner.hpp"
-#include<opencv2/opencv.hpp>
+
+#include <opencv2/opencv.hpp>
 
 namespace lie_lane_detection
 {
@@ -31,8 +32,7 @@ void LaneDetectionPipeline::updateParams(const PipelineParams & params)
 }
 
 LaneDetectionResult LaneDetectionPipeline::detect(
-  const cv::Mat & image_bgr,
-  const sensor_msgs::msg::CameraInfo * camera_info)
+  const cv::Mat & image_bgr, const sensor_msgs::msg::CameraInfo * camera_info)
 {
   LaneDetectionResult result;
 

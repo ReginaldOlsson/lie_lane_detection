@@ -1,13 +1,14 @@
 #pragma once
 
-#include <opencv2/core.hpp>
-#include <vector>
-
-#include "lie_lane_detection/geometry/template_curve.hpp"
 #include "lie_lane_detection/core/types.hpp"
 #include "lie_lane_detection/fitting/ceres_lane_fitter.hpp"
 #include "lie_lane_detection/fitting/line_segment_ransac_gate.hpp"
+#include "lie_lane_detection/geometry/template_curve.hpp"
 #include "lie_lane_detection/voting/peak_refinement.hpp"
+
+#include <opencv2/core.hpp>
+
+#include <vector>
 
 namespace lie_lane_detection
 {
@@ -31,30 +32,25 @@ public:
 
   CoarseSE2Voter(const PipelineParams & params, TemplateCurve * template_curve);
 
-  void setTemplateCurve(TemplateCurve * template_curve) {template_curve_ = template_curve;}
+  void setTemplateCurve(TemplateCurve * template_curve) { template_curve_ = template_curve; }
 
   std::vector<LaneHypothesis> voteEdges(
-    const std::vector<EdgePoint> & edges,
-    cv::Mat * hough_debug_slice = nullptr);
+    const std::vector<EdgePoint> & edges, cv::Mat * hough_debug_slice = nullptr);
 
   std::vector<LaneHypothesis> voteLines(
-    const std::vector<LineSegment> & lines,
-    cv::Mat * hough_debug_slice = nullptr);
+    const std::vector<LineSegment> & lines, cv::Mat * hough_debug_slice = nullptr);
 
 private:
   void voteEdgesIntoAccum(
-    const std::vector<EdgePoint> & edges,
-    const GridConfig & grid,
+    const std::vector<EdgePoint> & edges, const GridConfig & grid,
     std::vector<double> & accum) const;
 
   void voteLinesIntoAccum(
-    const std::vector<LineSegment> & lines,
-    const GridConfig & grid,
+    const std::vector<LineSegment> & lines, const GridConfig & grid,
     std::vector<double> & accum) const;
 
   std::vector<SE2PeakCandidate> extractPeaks(
-    const std::vector<double> & accum,
-    const GridConfig & grid) const;
+    const std::vector<double> & accum, const GridConfig & grid) const;
 
   GridConfig makeCoarseGrid() const;
   GridConfig makeRefineGrid(const SE2PeakCandidate & peak) const;

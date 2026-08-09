@@ -1,8 +1,8 @@
 #pragma once
 
-#include <opencv2/core.hpp>
-
 #include "lie_lane_detection/core/types.hpp"
+
+#include <opencv2/core.hpp>
 
 namespace lie_lane_detection
 {
@@ -62,9 +62,7 @@ cv::Mat warpPerspectiveToBev(const cv::Mat & image_bgr, const PipelineParams & p
 /// configureParamsForBev()/configureParamsForPerspectiveIpm() to avoid
 /// re-deriving (and partially clobbering) the SE(2)/deform bin configuration.
 BevDetectionResult detectLanesInBev(
-  const cv::Mat & bev_bgr,
-  PipelineParams params,
-  bool configure_params = true,
+  const cv::Mat & bev_bgr, PipelineParams params, bool configure_params = true,
   RoadFeatureSegmenter * road_segmenter = nullptr);
 
 }  // namespace lie_lane_detection

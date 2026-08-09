@@ -1,12 +1,12 @@
 #pragma once
 
-#include <string>
-#include <vector>
+#include "lie_lane_detection/core/types.hpp"
 
 #include <opencv2/core.hpp>
 #include <rclcpp/rclcpp.hpp>
 
-#include "lie_lane_detection/core/types.hpp"
+#include <string>
+#include <vector>
 
 namespace lie_lane_detection
 {
@@ -50,21 +50,17 @@ IntensityStripParams loadIntensityStripParams(rclcpp::Node & node);
 
 /// Split BEV into horizontal bands, find column-intensity peaks, detect lanes per vertical strip.
 IntensityStripDetectionResult detectLanesIntensityStrips(
-  const cv::Mat & bev_bgr,
-  const PipelineParams & detect_params,
+  const cv::Mat & bev_bgr, const PipelineParams & detect_params,
   const IntensityStripParams & strip_params);
 
 /// Draw horizontal band cuts, vertical strip boxes, lane overlays, and strip counts.
 cv::Mat drawIntensityStripOverlay(
-  const cv::Mat & bev_bgr,
-  const IntensityStripDetectionResult & result,
+  const cv::Mat & bev_bgr, const IntensityStripDetectionResult & result,
   const IntensityStripParams & strip_params);
 
 /// Project BEV strip cuts + lane curves onto the original camera image.
 cv::Mat drawFrontalIntensityStripOverlay(
-  const cv::Mat & frontal_bgr,
-  const IntensityStripDetectionResult & result,
-  const IntensityStripParams & strip_params,
-  const cv::Mat & H_img2bev);
+  const cv::Mat & frontal_bgr, const IntensityStripDetectionResult & result,
+  const IntensityStripParams & strip_params, const cv::Mat & H_img2bev);
 
 }  // namespace lie_lane_detection

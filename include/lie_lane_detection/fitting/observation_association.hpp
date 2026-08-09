@@ -1,9 +1,9 @@
 #pragma once
 
-#include <vector>
-
 #include "lie_lane_detection/core/types.hpp"
 #include "lie_lane_detection/geometry/template_curve.hpp"
+
+#include <vector>
 
 namespace lie_lane_detection
 {
@@ -30,12 +30,10 @@ public:
   ObservationAssociation(const PipelineParams & params, TemplateCurve * template_curve);
 
   std::vector<AssociatedLine> associateLines(
-    const XiVector & seed_xi,
-    const std::vector<LineSegment> & lines) const;
+    const XiVector & seed_xi, const std::vector<LineSegment> & lines) const;
 
   std::vector<AssociatedEdge> associateEdges(
-    const XiVector & seed_xi,
-    const std::vector<EdgePoint> & edges) const;
+    const XiVector & seed_xi, const std::vector<EdgePoint> & edges) const;
 
   bool lineSupportsSeed(const XiVector & seed_xi, const LineSegment & line) const;
 

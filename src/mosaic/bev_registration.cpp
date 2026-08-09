@@ -1,14 +1,14 @@
 #include "lie_lane_detection/mosaic/bev_registration.hpp"
 
-#include <algorithm>
-#include <cmath>
-#include <limits>
+#include "lie_lane_detection/mosaic/bev_orb_matcher.hpp"
 
 #include <opencv2/calib3d.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/video/tracking.hpp>
 
-#include "lie_lane_detection/mosaic/bev_orb_matcher.hpp"
+#include <algorithm>
+#include <cmath>
+#include <limits>
 
 namespace lie_lane_detection
 {
@@ -43,42 +43,36 @@ bool withinStepLimits(const cv::Mat & affine_2x3, const BevRegistrationParams & 
 }
 
 cv::Point2d estimateCoarseTranslation(
-  const cv::Mat & prev_gray,
-  const cv::Mat & curr_gray,
-  const cv::Mat & mask,
+  const cv::Mat & prev_gray, const cv::Mat & curr_gray, const cv::Mat & mask,
   const BevRegistrationParams & params)
 {
   auto maskedError = [&](double dx, double dy) {
-      const cv::Mat shift = (cv::Mat_<double>(2, 3) <<
-        1.0, 0.0, dx,
-        0.0, 1.0, dy);
-      cv::Mat warped;
-      cv::warpAffine(curr_gray, warped, shift, prev_gray.size(), cv::INTER_LINEAR);
-      double err = 0.0;
-      int count = 0;
-      for (int y = 0; y < prev_gray.rows; ++y) {
-        for (int x = 0; x < prev_gray.cols; ++x) {
-          if (mask.at<uchar>(y, x) == 0 || warped.at<uchar>(y, x) <= params.mask_gray_threshold) {
-            continue;
-          }
-          err += std::abs(
-            static_cast<int>(prev_gray.at<uchar>(y, x)) -
-            static_cast<int>(warped.at<uchar>(y, x)));
-          ++count;
+    const cv::Mat shift = (cv::Mat_<double>(2, 3) << 1.0, 0.0, dx, 0.0, 1.0, dy);
+    cv::Mat warped;
+    cv::warpAffine(curr_gray, warped, shift, prev_gray.size(), cv::INTER_LINEAR);
+    double err = 0.0;
+    int count = 0;
+    for (int y = 0; y < prev_gray.rows; ++y) {
+      for (int x = 0; x < prev_gray.cols; ++x) {
+        if (mask.at<uchar>(y, x) == 0 || warped.at<uchar>(y, x) <= params.mask_gray_threshold) {
+          continue;
         }
+        err += std::abs(
+          static_cast<int>(prev_gray.at<uchar>(y, x)) - static_cast<int>(warped.at<uchar>(y, x)));
+        ++count;
       }
-      if (count < 500) {
-        return std::numeric_limits<double>::max();
-      }
-      return err / static_cast<double>(count);
-    };
+    }
+    if (count < 500) {
+      return std::numeric_limits<double>::max();
+    }
+    return err / static_cast<double>(count);
+  };
 
   double best_err = maskedError(0.0, 0.0);
   cv::Point2d best(0.0, 0.0);
 
   for (int dy = -params.coarse_max_dy_px; dy <= params.coarse_max_dy_px;
-    dy += params.coarse_dy_step_px)
-  {
+       dy += params.coarse_dy_step_px) {
     for (int dx = -30; dx <= 30; dx += params.coarse_dy_step_px) {
       if (dx == 0 && dy == 0) {
         continue;
@@ -139,9 +133,7 @@ namespace
 {
 
 BevRegistrationResult registerEcc(
-  const cv::Mat & prev_gray,
-  const cv::Mat & curr_gray,
-  const cv::Mat & prev_mask,
+  const cv::Mat & prev_gray, const cv::Mat & curr_gray, const cv::Mat & prev_mask,
   const BevRegistrationParams & params)
 {
   BevRegistrationResult result;
@@ -168,9 +160,7 @@ BevRegistrationResult registerEcc(
     }
   }
   const cv::TermCriteria criteria(
-    cv::TermCriteria::COUNT | cv::TermCriteria::EPS,
-    params.ecc_max_iterations,
-    params.ecc_epsilon);
+    cv::TermCriteria::COUNT | cv::TermCriteria::EPS, params.ecc_max_iterations, params.ecc_epsilon);
 
   try {
     result.correlation = cv::findTransformECC(
@@ -178,7 +168,7 @@ BevRegistrationResult registerEcc(
     warp_matrix.convertTo(result.relative_affine_2x3, CV_64F);
     fillMotionFromAffine(result);
     result.valid = result.correlation >= params.min_ecc_correlation &&
-      withinStepLimits(result.relative_affine_2x3, params);
+                   withinStepLimits(result.relative_affine_2x3, params);
   } catch (const cv::Exception &) {
     result.valid = false;
   }
@@ -186,11 +176,8 @@ BevRegistrationResult registerEcc(
 }
 
 BevRegistrationResult registerOrb(
-  const cv::Mat & prev_gray,
-  const cv::Mat & curr_gray,
-  const cv::Mat & prev_mask,
-  const cv::Mat & curr_mask,
-  const BevRegistrationParams & params)
+  const cv::Mat & prev_gray, const cv::Mat & curr_gray, const cv::Mat & prev_mask,
+  const cv::Mat & curr_mask, const BevRegistrationParams & params)
 {
   BevRegistrationResult result;
   result.method_used = "orb";
@@ -238,18 +225,16 @@ BevRegistrationResult registerOrb(
   fillMotionFromAffine(result);
   result.inlier_count = inliers.empty() ? 0 : cv::countNonZero(inliers);
   result.correlation = static_cast<double>(result.inlier_count) /
-    static_cast<double>(std::max<size_t>(1, matches.size()));
+                       static_cast<double>(std::max<size_t>(1, matches.size()));
   result.valid = result.inlier_count >= params.orb_min_inliers &&
-    withinStepLimits(result.relative_affine_2x3, params);
+                 withinStepLimits(result.relative_affine_2x3, params);
   return result;
 }
 
 }  // namespace
 
 BevRegistrationResult estimateBevFrameMotion(
-  const cv::Mat & prev_bgr,
-  const cv::Mat & curr_bgr,
-  const BevRegistrationParams & params)
+  const cv::Mat & prev_bgr, const cv::Mat & curr_bgr, const BevRegistrationParams & params)
 {
   BevRegistrationResult out;
   const cv::Mat prev_gray = toGray(prev_bgr);
@@ -262,11 +247,11 @@ BevRegistrationResult estimateBevFrameMotion(
   const cv::Mat curr_mask = buildBevRoadMask(curr_gray, params);
 
   const bool try_orb = params.method == BevRegistrationMethod::ORB ||
-    params.method == BevRegistrationMethod::ECC_THEN_ORB ||
-    params.method == BevRegistrationMethod::ORB_THEN_ECC;
+                       params.method == BevRegistrationMethod::ECC_THEN_ORB ||
+                       params.method == BevRegistrationMethod::ORB_THEN_ECC;
   const bool try_ecc = params.method == BevRegistrationMethod::ECC ||
-    params.method == BevRegistrationMethod::ECC_THEN_ORB ||
-    params.method == BevRegistrationMethod::ORB_THEN_ECC;
+                       params.method == BevRegistrationMethod::ECC_THEN_ORB ||
+                       params.method == BevRegistrationMethod::ORB_THEN_ECC;
 
   BevRegistrationResult ecc_result;
   BevRegistrationResult orb_result;
@@ -302,9 +287,7 @@ BevRegistrationResult estimateBevFrameMotion(
 }
 
 cv::Mat alignCurrentToPrevious(
-  const cv::Mat & prev_bgr,
-  const cv::Mat & curr_bgr,
-  const cv::Mat & relative_affine_2x3)
+  const cv::Mat & prev_bgr, const cv::Mat & curr_bgr, const cv::Mat & relative_affine_2x3)
 {
   if (prev_bgr.empty() || curr_bgr.empty() || relative_affine_2x3.empty()) {
     return {};
@@ -315,9 +298,7 @@ cv::Mat alignCurrentToPrevious(
 }
 
 BevAlignmentDebug makeBevAlignmentDebug(
-  const cv::Mat & prev_bgr,
-  const cv::Mat & curr_bgr,
-  const BevRegistrationResult & reg,
+  const cv::Mat & prev_bgr, const cv::Mat & curr_bgr, const BevRegistrationResult & reg,
   const BevRegistrationParams & params)
 {
   BevAlignmentDebug debug;

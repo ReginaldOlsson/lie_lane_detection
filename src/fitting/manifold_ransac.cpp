@@ -1,11 +1,11 @@
 #include "lie_lane_detection/fitting/manifold_ransac.hpp"
 
+#include "lie_lane_detection/common/parallel.hpp"
+#include "lie_lane_detection/fitting/ceres_lane_fitter.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <random>
-
-#include "lie_lane_detection/common/parallel.hpp"
-#include "lie_lane_detection/fitting/ceres_lane_fitter.hpp"
 
 namespace lie_lane_detection
 {
@@ -16,8 +16,7 @@ ManifoldRansac::ManifoldRansac(const PipelineParams & params, TemplateCurve * te
 }
 
 std::vector<EdgePoint> ManifoldRansac::collectCandidates(
-  const XiVector & xi,
-  const std::vector<EdgePoint> & edges) const
+  const XiVector & xi, const std::vector<EdgePoint> & edges) const
 {
   std::vector<EdgePoint> candidates;
   const double gate = params_.inlier_threshold_px * 3.0;
@@ -70,7 +69,8 @@ bool ManifoldRansac::fitMinimal(const std::vector<EdgePoint> & sample, XiVector 
   const double omega = std::atan2(num, den);
   const double c = std::cos(omega);
   const double s = std::sin(omega);
-  const Vec2 rotated_src_mean(c * src_mean.x() - s * src_mean.y(), s * src_mean.x() + c * src_mean.y());
+  const Vec2 rotated_src_mean(
+    c * src_mean.x() - s * src_mean.y(), s * src_mean.x() + c * src_mean.y());
   const Vec2 trans = tgt_mean - rotated_src_mean;
 
   const double keep_kappa = xi_out[3];
@@ -85,9 +85,7 @@ bool ManifoldRansac::fitMinimal(const std::vector<EdgePoint> & sample, XiVector 
 }
 
 int ManifoldRansac::countInliers(
-  const XiVector & xi,
-  const std::vector<EdgePoint> & edges,
-  std::vector<bool> * mask,
+  const XiVector & xi, const std::vector<EdgePoint> & edges, std::vector<bool> * mask,
   double * weighted_inliers) const
 {
   int count = 0;
@@ -189,9 +187,7 @@ void ManifoldRansac::refineGaussNewton(XiVector & xi, const std::vector<EdgePoin
 }
 
 LaneHypothesis ManifoldRansac::fit(
-  const LaneHypothesis & seed,
-  const std::vector<EdgePoint> & edges,
-  bool refine) const
+  const LaneHypothesis & seed, const std::vector<EdgePoint> & edges, bool refine) const
 {
   LaneHypothesis best = seed;
   const std::vector<EdgePoint> candidates = collectCandidates(seed.xi, edges);
@@ -211,20 +207,16 @@ LaneHypothesis ManifoldRansac::fit(
   // The seed-ranking pass (refine=false) only needs an approximate consensus to
   // compare candidates, so it runs a fraction of the iterations; the winning
   // seed is re-fit with the full budget before refinement.
-  const int ransac_iters = refine
-    ? params_.ransac_iterations
-    : std::max(24, params_.ransac_iterations / 4);
+  const int ransac_iters =
+    refine ? params_.ransac_iterations : std::max(24, params_.ransac_iterations / 4);
 
   const RansacBest best_state = tbb::parallel_reduce(
-    tbb::blocked_range<int>(0, ransac_iters),
-    RansacBest{},
+    tbb::blocked_range<int>(0, ransac_iters), RansacBest{},
     [&](const tbb::blocked_range<int> & range, RansacBest local) {
       std::mt19937 rng(static_cast<unsigned>(42 + range.begin()));
       for (int it = range.begin(); it != range.end(); ++it) {
         std::vector<EdgePoint> sample;
-        std::sample(
-          candidates.begin(), candidates.end(), std::back_inserter(sample), 5,
-          rng);
+        std::sample(candidates.begin(), candidates.end(), std::back_inserter(sample), 5, rng);
         if (sample.size() < 5) {
           continue;
         }
@@ -259,14 +251,14 @@ LaneHypothesis ManifoldRansac::fit(
   std::vector<bool> best_mask = best_state.mask;
 
   auto edgesFromMask = [&](const std::vector<bool> & mask) {
-      std::vector<EdgePoint> pts;
-      for (size_t i = 0; i < candidates.size(); ++i) {
-        if (i < mask.size() && mask[i]) {
-          pts.push_back(candidates[i]);
-        }
+    std::vector<EdgePoint> pts;
+    for (size_t i = 0; i < candidates.size(); ++i) {
+      if (i < mask.size() && mask[i]) {
+        pts.push_back(candidates[i]);
       }
-      return pts;
-    };
+    }
+    return pts;
+  };
 
   // Iterated reweighted refinement. A non-linear refinement (Ceres / Gauss-
   // Newton) can diverge when a parameter is weakly observed - e.g. the
@@ -299,8 +291,9 @@ LaneHypothesis ManifoldRansac::fit(
   }
 
   best.xi = best_xi;
-  best.inlier_ratio = candidates.empty() ? 0.0 :
-    static_cast<double>(best_inliers) / static_cast<double>(candidates.size());
+  best.inlier_ratio =
+    candidates.empty() ? 0.0
+                       : static_cast<double>(best_inliers) / static_cast<double>(candidates.size());
   best.score = seed.score * best.inlier_ratio;
   best.polyline = template_curve_->samplePolyline(best.xi);
   best.inlier_mask = best_mask;

@@ -1,10 +1,10 @@
 #include "lie_lane_detection/mosaic/odom_bev_mosaic_accumulator.hpp"
 
+#include <opencv2/imgproc.hpp>
+
 #include <algorithm>
 #include <array>
 #include <cmath>
-
-#include <opencv2/imgproc.hpp>
 
 namespace lie_lane_detection
 {
@@ -45,8 +45,7 @@ cv::Rect boundingRectFromPoints(const std::vector<cv::Point2f> & points)
   }
   return cv::Rect(
     static_cast<int>(std::floor(min_x)), static_cast<int>(std::floor(min_y)),
-    static_cast<int>(std::ceil(max_x - min_x)) + 1,
-    static_cast<int>(std::ceil(max_y - min_y)) + 1);
+    static_cast<int>(std::ceil(max_x - min_x)) + 1, static_cast<int>(std::ceil(max_y - min_y)) + 1);
 }
 
 }  // namespace
@@ -78,9 +77,9 @@ cv::Point2d OdomBevMosaicAccumulator::mapBodyToCanvasPx(
 cv::Mat OdomBevMosaicAccumulator::computeBevToCanvasAffine(const Pose2d & pose_map) const
 {
   Pose2d pose = pose_map;
-  if (params_.pose_lateral_offset_m != 0.0 || params_.pose_forward_offset_m != 0.0 ||
-    params_.pose_yaw_offset_rad != 0.0)
-  {
+  if (
+    params_.pose_lateral_offset_m != 0.0 || params_.pose_forward_offset_m != 0.0 ||
+    params_.pose_yaw_offset_rad != 0.0) {
     Pose2d offset;
     offset.x = params_.pose_lateral_offset_m;
     offset.y = params_.pose_forward_offset_m;
@@ -226,19 +225,21 @@ OdomBevMosaicFrameResult OdomBevMosaicAccumulator::accumulate(
   const std::array<cv::Point2f, 4> bev_corners = {
     cv::Point2f(0.f, 0.f),
     cv::Point2f(static_cast<float>(params_.bev_width_px), 0.f),
-    cv::Point2f(static_cast<float>(params_.bev_width_px), static_cast<float>(params_.bev_height_px)),
+    cv::Point2f(
+      static_cast<float>(params_.bev_width_px), static_cast<float>(params_.bev_height_px)),
     cv::Point2f(0.f, static_cast<float>(params_.bev_height_px)),
   };
   std::vector<cv::Point2f> canvas_corners;
   canvas_corners.reserve(4);
   for (const auto & corner : bev_corners) {
-    canvas_corners.push_back(cv::Point2f(
-      static_cast<float>(
-        affine.at<double>(0, 0) * corner.x + affine.at<double>(0, 1) * corner.y +
-        affine.at<double>(0, 2)),
-      static_cast<float>(
-        affine.at<double>(1, 0) * corner.x + affine.at<double>(1, 1) * corner.y +
-        affine.at<double>(1, 2))));
+    canvas_corners.push_back(
+      cv::Point2f(
+        static_cast<float>(
+          affine.at<double>(0, 0) * corner.x + affine.at<double>(0, 1) * corner.y +
+          affine.at<double>(0, 2)),
+        static_cast<float>(
+          affine.at<double>(1, 0) * corner.x + affine.at<double>(1, 1) * corner.y +
+          affine.at<double>(1, 2))));
   }
   ensureCanvasContains(boundingRectFromPoints(canvas_corners));
 

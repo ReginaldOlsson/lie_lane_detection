@@ -1,7 +1,7 @@
-#include <gtest/gtest.h>
-
-#include "lie_lane_detection/voting/coarse_se2_voter.hpp"
 #include "lie_lane_detection/testing/test_helpers.hpp"
+#include "lie_lane_detection/voting/coarse_se2_voter.hpp"
+
+#include <gtest/gtest.h>
 
 TEST(CoarseSE2Voter, recoversStraightLane)
 {

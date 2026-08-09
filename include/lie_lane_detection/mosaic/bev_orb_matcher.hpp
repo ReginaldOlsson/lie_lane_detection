@@ -1,18 +1,13 @@
 #pragma once
 
-#include <vector>
-
 #include <opencv2/core.hpp>
+
+#include <vector>
 
 namespace lie_lane_detection
 {
 
-enum class BevOrbMatchMethod
-{
-  FLANN_LSH,
-  LOWE_BF,
-  RADIUS_BF
-};
+enum class BevOrbMatchMethod { FLANN_LSH, LOWE_BF, RADIUS_BF };
 
 struct BevOrbParams
 {
@@ -37,23 +32,15 @@ struct BevOrbFeatures
 
 /// ORB detect + grid-uniform keypoints + descriptors (Monocular-VO style).
 BevOrbFeatures extractBevOrb(
-  const cv::Mat & gray,
-  const cv::Mat & mask,
-  const BevOrbParams & params);
+  const cv::Mat & gray, const cv::Mat & mask, const BevOrbParams & params);
 
 /// Match ORB descriptors between consecutive BEV frames.
 std::vector<cv::DMatch> matchBevOrb(
-  const BevOrbFeatures & prev,
-  const BevOrbFeatures & curr,
-  const BevOrbParams & params);
+  const BevOrbFeatures & prev, const BevOrbFeatures & curr, const BevOrbParams & params);
 
 void selectUniformKeypointsByGrid(
-  std::vector<cv::KeyPoint> & keypoints,
-  int image_rows,
-  int image_cols,
-  int grid_cell_px,
-  int max_per_cell,
-  int max_total);
+  std::vector<cv::KeyPoint> & keypoints, int image_rows, int image_cols, int grid_cell_px,
+  int max_per_cell, int max_total);
 
 void removeDuplicatedTrainMatches(std::vector<cv::DMatch> & matches);
 

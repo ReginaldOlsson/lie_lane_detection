@@ -23,12 +23,7 @@ inline double binCenter(int i, int n, double vmin, double vmax)
 }
 
 double sampleAccum(
-  const std::vector<double> & accum,
-  int vx_bins,
-  int vy_bins,
-  int omega_bins,
-  int ix,
-  int iy,
+  const std::vector<double> & accum, int vx_bins, int vy_bins, int omega_bins, int ix, int iy,
   int io)
 {
   ix = std::clamp(ix, 0, vx_bins - 1);
@@ -40,14 +35,8 @@ double sampleAccum(
 }  // namespace
 
 SE2PeakCandidate refinePeakQuadratic(
-  const std::vector<double> & accum,
-  int vx_bins,
-  int vy_bins,
-  int omega_bins,
-  int ix,
-  int iy,
-  int io,
-  const PipelineParams & params)
+  const std::vector<double> & accum, int vx_bins, int vy_bins, int omega_bins, int ix, int iy,
+  int io, const PipelineParams & params)
 {
   SE2PeakCandidate out;
   out.votes = sampleAccum(accum, vx_bins, vy_bins, omega_bins, ix, iy, io);
@@ -62,7 +51,8 @@ SE2PeakCandidate refinePeakQuadratic(
   }
   sub_ix = std::clamp(sub_ix, 0.0, static_cast<double>(vx_bins - 1));
 
-  out.vx = binCenter(static_cast<int>(std::lround(sub_ix)), vx_bins, params.se2_vx_min, params.se2_vx_max);
+  out.vx =
+    binCenter(static_cast<int>(std::lround(sub_ix)), vx_bins, params.se2_vx_min, params.se2_vx_max);
   out.vy = binCenter(iy, vy_bins, params.se2_vy_min, params.se2_vy_max);
   out.omega = binCenter(io, omega_bins, params.se2_omega_min, params.se2_omega_max);
   out.xi[0] = out.vx;
@@ -72,9 +62,7 @@ SE2PeakCandidate refinePeakQuadratic(
 }
 
 std::vector<SE2PeakCandidate> meanShiftPeaks(
-  const std::vector<SE2PeakCandidate> & peaks,
-  double bandwidth,
-  int max_iterations)
+  const std::vector<SE2PeakCandidate> & peaks, double bandwidth, int max_iterations)
 {
   if (peaks.empty()) {
     return {};
@@ -119,8 +107,8 @@ std::vector<SE2PeakCandidate> meanShiftPeaks(
     }
   }
   std::sort(modes.begin(), modes.end(), [](const SE2PeakCandidate & a, const SE2PeakCandidate & b) {
-      return a.votes > b.votes;
-    });
+    return a.votes > b.votes;
+  });
   return modes;
 }
 

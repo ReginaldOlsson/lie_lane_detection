@@ -73,14 +73,12 @@ BevMosaicParams loadMosaicParams(rclcpp::Node & node)
   p.registration.orb_fast_threshold = node.declare_parameter<int>("orb_fast_threshold", 20);
   p.registration.orb_match_method =
     parseOrbMatchMethod(node.declare_parameter<std::string>("orb_match_method", "radius"));
-  p.registration.orb_xiang_gao_ratio =
-    node.declare_parameter<double>("orb_xiang_gao_ratio", 2.0);
+  p.registration.orb_xiang_gao_ratio = node.declare_parameter<double>("orb_xiang_gao_ratio", 2.0);
   p.registration.orb_lowe_ratio = node.declare_parameter<double>("orb_lowe_ratio", 0.75);
   p.registration.orb_radius_match_px = node.declare_parameter<int>("orb_radius_match_px", 100);
   p.registration.orb_match_ratio = node.declare_parameter<double>("feature_match_ratio", 0.75);
   p.registration.orb_min_inliers = node.declare_parameter<int>("feature_min_inliers", 10);
-  p.registration.orb_ransac_threshold =
-    node.declare_parameter<double>("orb_ransac_threshold", 3.0);
+  p.registration.orb_ransac_threshold = node.declare_parameter<double>("orb_ransac_threshold", 3.0);
   p.registration.max_step_translation_px =
     node.declare_parameter<double>("max_step_translation_px", 200.0);
   p.registration.max_step_rotation_rad =

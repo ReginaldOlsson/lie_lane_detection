@@ -1,8 +1,8 @@
 #include "lie_lane_detection/pipeline/line_lane_detection_pipeline.hpp"
 
-#include "lie_lane_detection/preprocessing/ipm_transformer.hpp"
 #include "lie_lane_detection/pipeline/lane_detection_runner.hpp"
 #include "lie_lane_detection/pipeline/line_lane_detection_runner.hpp"
+#include "lie_lane_detection/preprocessing/ipm_transformer.hpp"
 
 namespace lie_lane_detection
 {
@@ -18,8 +18,7 @@ void LineLaneDetectionPipeline::updateParams(const PipelineParams & params)
 }
 
 LineLaneDetectionResult LineLaneDetectionPipeline::detect(
-  const cv::Mat & image_bgr,
-  const sensor_msgs::msg::CameraInfo * camera_info)
+  const cv::Mat & image_bgr, const sensor_msgs::msg::CameraInfo * camera_info)
 {
   LineLaneDetectionResult result;
 

@@ -1,17 +1,16 @@
 #include "lie_lane_detection/preprocessing/edge_extractor.hpp"
 
-#include <algorithm>
-#include <vector>
+#include "lie_lane_detection/common/parallel.hpp"
 
 #include <opencv2/imgproc.hpp>
 
-#include "lie_lane_detection/common/parallel.hpp"
+#include <algorithm>
+#include <vector>
 
 namespace lie_lane_detection
 {
 
-EdgeExtractor::EdgeExtractor(const PipelineParams & params)
-: params_(params)
+EdgeExtractor::EdgeExtractor(const PipelineParams & params) : params_(params)
 {
 }
 
@@ -24,15 +23,13 @@ cv::Mat EdgeExtractor::applySteerableBank(const cv::Mat & gray, cv::Mat * orient
 
   constexpr int kNumOrientations = 5;
   std::vector<cv::Mat> oriented(static_cast<size_t>(kNumOrientations));
-  tbb::parallel_for(
-    0, kNumOrientations,
-    [&](int o) {
-      const double theta = CV_PI * static_cast<double>(o) / static_cast<double>(kNumOrientations);
-      const float ct = static_cast<float>(std::cos(theta));
-      const float st = static_cast<float>(std::sin(theta));
-      cv::Mat directed = ct * gx + st * gy;
-      oriented[static_cast<size_t>(o)] = cv::abs(directed);
-    });
+  tbb::parallel_for(0, kNumOrientations, [&](int o) {
+    const double theta = CV_PI * static_cast<double>(o) / static_cast<double>(kNumOrientations);
+    const float ct = static_cast<float>(std::cos(theta));
+    const float st = static_cast<float>(std::sin(theta));
+    cv::Mat directed = ct * gx + st * gy;
+    oriented[static_cast<size_t>(o)] = cv::abs(directed);
+  });
 
   cv::Mat response = oriented[0].clone();
   for (int o = 1; o < kNumOrientations; ++o) {
@@ -46,9 +43,7 @@ cv::Mat EdgeExtractor::applySteerableBank(const cv::Mat & gray, cv::Mat * orient
 }
 
 double EdgeExtractor::otsuThresholdMasked(
-  const cv::Mat & gray,
-  const cv::Mat & road_mask,
-  cv::Mat & binary_out)
+  const cv::Mat & gray, const cv::Mat & road_mask, cv::Mat & binary_out)
 {
   if (gray.empty() || road_mask.empty() || gray.size() != road_mask.size()) {
     binary_out = gray.empty() ? cv::Mat{} : gray.clone();
@@ -57,8 +52,8 @@ double EdgeExtractor::otsuThresholdMasked(
 
   cv::Mat otsu_input = gray.clone();
   otsu_input.setTo(0, ~road_mask);
-  const double threshold = cv::threshold(
-    otsu_input, binary_out, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
+  const double threshold =
+    cv::threshold(otsu_input, binary_out, 0, 255, cv::THRESH_BINARY | cv::THRESH_OTSU);
   binary_out.setTo(0, ~road_mask);
   return threshold;
 }
@@ -159,8 +154,7 @@ std::vector<EdgePoint> EdgeExtractor::extract(const cv::Mat & bev_bgr, cv::Mat *
 
   std::vector<EdgePoint> edges(nonzero.size());
   tbb::parallel_for(
-    tbb::blocked_range<size_t>(0, nonzero.size()),
-    [&](const tbb::blocked_range<size_t> & range) {
+    tbb::blocked_range<size_t>(0, nonzero.size()), [&](const tbb::blocked_range<size_t> & range) {
       for (size_t i = range.begin(); i != range.end(); ++i) {
         const cv::Point & pt = nonzero[i];
         EdgePoint ep;

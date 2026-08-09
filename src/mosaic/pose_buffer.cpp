@@ -51,7 +51,7 @@ std::optional<Pose2d> PoseBuffer::lookup(const int64_t stamp_ns, const int64_t m
 
   auto it = std::lower_bound(
     samples_.begin(), samples_.end(), stamp_ns,
-    [](const PoseSample & sample, const int64_t t) {return sample.stamp_ns < t;});
+    [](const PoseSample & sample, const int64_t t) { return sample.stamp_ns < t; });
 
   if (it == samples_.begin()) {
     const int64_t dt = samples_.front().stamp_ns - stamp_ns;
@@ -107,8 +107,8 @@ Pose2d TfPoseResolver::transformToPose2d(const geometry_msgs::msg::TransformStam
   pose.x = transform.transform.translation.x;
   pose.y = transform.transform.translation.y;
   pose.yaw_rad = yawFromQuaternion(
-    transform.transform.rotation.x, transform.transform.rotation.y,
-    transform.transform.rotation.z, transform.transform.rotation.w);
+    transform.transform.rotation.x, transform.transform.rotation.y, transform.transform.rotation.z,
+    transform.transform.rotation.w);
   return pose;
 }
 
@@ -127,11 +127,11 @@ void TfPoseResolver::addDynamicTransform(const geometry_msgs::msg::TransformStam
   const std::string parent = normalizeFrame(transform.header.frame_id);
   const std::string child = normalizeFrame(transform.child_frame_id);
   const int64_t stamp_ns = static_cast<int64_t>(transform.header.stamp.sec) * 1000000000LL +
-    static_cast<int64_t>(transform.header.stamp.nanosec);
+                           static_cast<int64_t>(transform.header.stamp.nanosec);
 
   auto it = std::find_if(
     dynamic_edges_.begin(), dynamic_edges_.end(),
-    [&](const DynamicEdge & edge) {return edge.parent == parent && edge.child == child;});
+    [&](const DynamicEdge & edge) { return edge.parent == parent && edge.child == child; });
   if (it == dynamic_edges_.end()) {
     DynamicEdge edge;
     edge.parent = parent;
@@ -174,9 +174,7 @@ std::optional<Pose2d> TfPoseResolver::lookupStaticChain(
 }
 
 std::optional<Pose2d> TfPoseResolver::lookup(
-  const std::string & parent_frame,
-  const std::string & child_frame,
-  const int64_t stamp_ns,
+  const std::string & parent_frame, const std::string & child_frame, const int64_t stamp_ns,
   const int64_t max_delta_ns) const
 {
   const std::string parent = normalizeFrame(parent_frame);

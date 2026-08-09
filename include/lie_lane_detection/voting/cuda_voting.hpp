@@ -47,15 +47,10 @@ struct StageAConfig
 /// Returns false if the GPU path is unavailable or a CUDA call failed, in which
 /// case the caller must fall back to the CPU implementation.
 bool stageAVote(
-  const StageAConfig & cfg,
-  const std::vector<float> & edge_x,
-  const std::vector<float> & edge_y,
-  const std::vector<float> & edge_mag,
-  const std::vector<float> & se2_inv_lut,
-  const std::vector<float> & vx_lut,
-  const std::vector<float> & preset_kappa,
-  const std::vector<float> & preset_sigma,
-  std::vector<double> & accum_out);
+  const StageAConfig & cfg, const std::vector<float> & edge_x, const std::vector<float> & edge_y,
+  const std::vector<float> & edge_mag, const std::vector<float> & se2_inv_lut,
+  const std::vector<float> & vx_lut, const std::vector<float> & preset_kappa,
+  const std::vector<float> & preset_sigma, std::vector<double> & accum_out);
 
 }  // namespace cuda
 }  // namespace lie_lane_detection

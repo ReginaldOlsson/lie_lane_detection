@@ -1,21 +1,15 @@
 #pragma once
 
-#include <string>
+#include "lie_lane_detection/mosaic/bev_orb_matcher.hpp"
 
 #include <opencv2/core.hpp>
 
-#include "lie_lane_detection/mosaic/bev_orb_matcher.hpp"
+#include <string>
 
 namespace lie_lane_detection
 {
 
-enum class BevRegistrationMethod
-{
-  ECC,
-  ORB,
-  ECC_THEN_ORB,
-  ORB_THEN_ECC
-};
+enum class BevRegistrationMethod { ECC, ORB, ECC_THEN_ORB, ORB_THEN_ECC };
 
 struct BevRegistrationParams
 {
@@ -53,7 +47,7 @@ struct BevRegistrationParams
 struct BevRegistrationResult
 {
   bool valid{false};
-  cv::Mat relative_affine_2x3;   // maps current -> previous (findTransformECC convention)
+  cv::Mat relative_affine_2x3;  // maps current -> previous (findTransformECC convention)
   cv::Mat relative_transform_3x3;
   double correlation{0.0};
   double dx_px{0.0};
@@ -85,21 +79,16 @@ cv::Mat buildBevRoadMask(const cv::Mat & gray, const BevRegistrationParams & par
 
 /// Estimate rigid Euclidean motion between consecutive orthographic BEV frames.
 BevRegistrationResult estimateBevFrameMotion(
-  const cv::Mat & prev_bgr,
-  const cv::Mat & curr_bgr,
+  const cv::Mat & prev_bgr, const cv::Mat & curr_bgr,
   const BevRegistrationParams & params = BevRegistrationParams{});
 
 /// Warp current frame into previous frame coordinates.
 cv::Mat alignCurrentToPrevious(
-  const cv::Mat & prev_bgr,
-  const cv::Mat & curr_bgr,
-  const cv::Mat & relative_affine_2x3);
+  const cv::Mat & prev_bgr, const cv::Mat & curr_bgr, const cv::Mat & relative_affine_2x3);
 
 /// Build blend / diff / side-by-side debug images for a pair.
 BevAlignmentDebug makeBevAlignmentDebug(
-  const cv::Mat & prev_bgr,
-  const cv::Mat & curr_bgr,
-  const BevRegistrationResult & reg,
+  const cv::Mat & prev_bgr, const cv::Mat & curr_bgr, const BevRegistrationResult & reg,
   const BevRegistrationParams & params = BevRegistrationParams{});
 
 }  // namespace lie_lane_detection

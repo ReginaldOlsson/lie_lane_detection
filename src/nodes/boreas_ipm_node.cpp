@@ -37,8 +37,9 @@ cv::Mat makeScaleMatrix(double sx, double sy)
 cv::Mat makeHorizontalFlipMatrix(int width_px)
 {
   // x' = (width - 1) - x
-  return (cv::Mat_<double>(3, 3) << -1.0, 0.0, static_cast<double>(width_px - 1), 0.0, 1.0, 0.0,
-    0.0, 0.0, 1.0);
+  return (
+    cv::Mat_<double>(3, 3) << -1.0, 0.0, static_cast<double>(width_px - 1), 0.0, 1.0, 0.0, 0.0, 0.0,
+    1.0);
 }
 
 int decodeFlagForReduce(int reduce)
@@ -57,32 +58,28 @@ int decodeFlagForReduce(int reduce)
 
 std::string compressedTopicFromBase(const std::string & image_topic)
 {
-  if (image_topic.size() >= 11 &&
-    image_topic.compare(image_topic.size() - 11, 11, "/compressed") == 0)
-  {
+  if (
+    image_topic.size() >= 11 &&
+    image_topic.compare(image_topic.size() - 11, 11, "/compressed") == 0) {
     return image_topic;
   }
   return image_topic + "/compressed";
 }
 
 /// Bilinear sample on IPM src quad (BL, BR, TR, TL) at normalized (s,t) in [0,1]^2.
-cv::Point2f sampleSrcQuad(
-  const std::array<cv::Point2f, 4> & quad, double s, double t)
+cv::Point2f sampleSrcQuad(const std::array<cv::Point2f, 4> & quad, double s, double t)
 {
-  const cv::Point2f bottom = (1.0f - static_cast<float>(s)) * quad[0] +
-    static_cast<float>(s) * quad[1];
-  const cv::Point2f top = (1.0f - static_cast<float>(s)) * quad[3] +
-    static_cast<float>(s) * quad[2];
+  const cv::Point2f bottom =
+    (1.0f - static_cast<float>(s)) * quad[0] + static_cast<float>(s) * quad[1];
+  const cv::Point2f top =
+    (1.0f - static_cast<float>(s)) * quad[3] + static_cast<float>(s) * quad[2];
   return (1.0f - static_cast<float>(t)) * bottom + static_cast<float>(t) * top;
 }
 
 /// Draw an NxN cell grid inside the src ROI so perspective warp shows distortions on BEV.
 void drawSrcGridOnImage(
-  cv::Mat & image_bgr,
-  const std::array<cv::Point2f, 4> & src_quad_proc,
-  int grid_n,
-  const cv::Scalar & color = cv::Scalar(0, 255, 255),
-  int thickness = 1)
+  cv::Mat & image_bgr, const std::array<cv::Point2f, 4> & src_quad_proc, int grid_n,
+  const cv::Scalar & color = cv::Scalar(0, 255, 255), int thickness = 1)
 {
   if (image_bgr.empty() || grid_n < 1) {
     return;
@@ -118,11 +115,9 @@ void drawSrcGridOnImage(
 class BoreasIpmNode : public rclcpp::Node
 {
 public:
-  BoreasIpmNode()
-  : Node("boreas_ipm_node")
+  BoreasIpmNode() : Node("boreas_ipm_node")
   {
-    const std::string image_topic =
-      declare_parameter<std::string>("image_topic", "/boreas/image");
+    const std::string image_topic = declare_parameter<std::string>("image_topic", "/boreas/image");
     const std::string camera_info_topic =
       declare_parameter<std::string>("camera_info_topic", "/boreas/camera_info");
     const std::string image_transport =
@@ -149,8 +144,7 @@ public:
 
     params_.bev_width_m = declare_parameter<double>("bev_width_m", 20.0);
     params_.bev_length_m = declare_parameter<double>("bev_length_m", 60.0);
-    params_.bev_resolution_m_per_px =
-      declare_parameter<double>("bev_resolution_m_per_px", 0.05);
+    params_.bev_resolution_m_per_px = declare_parameter<double>("bev_resolution_m_per_px", 0.05);
 
     if (calib_dir_.empty()) {
       throw std::runtime_error("boreas_ipm_node: boreas_calib_dir is required");
@@ -162,8 +156,7 @@ public:
     const auto qos = rclcpp::SensorDataQoS();
     bev_pub_ = create_publisher<sensor_msgs::msg::Image>(bev_topic, qos);
     camera_info_sub_ = create_subscription<sensor_msgs::msg::CameraInfo>(
-      camera_info_topic, qos,
-      std::bind(&BoreasIpmNode::onCameraInfo, this, std::placeholders::_1));
+      camera_info_topic, qos, std::bind(&BoreasIpmNode::onCameraInfo, this, std::placeholders::_1));
 
     if (image_transport == "compressed") {
       const std::string compressed_topic = compressedTopicFromBase(image_topic);
@@ -171,8 +164,7 @@ public:
         compressed_topic, qos,
         std::bind(&BoreasIpmNode::onCompressed, this, std::placeholders::_1));
       RCLCPP_INFO(
-        get_logger(),
-        "boreas_ipm_node: %s + %s -> %s [decode_reduce=%d, max_bev=%dx%d, calib=%s]",
+        get_logger(), "boreas_ipm_node: %s + %s -> %s [decode_reduce=%d, max_bev=%dx%d, calib=%s]",
         compressed_topic.c_str(), camera_info_topic.c_str(), bev_topic.c_str(), decode_reduce_,
         max_bev_width_px_, max_bev_height_px_, calib_dir_.c_str());
     } else {
@@ -235,9 +227,8 @@ private:
 
     PipelineParams params = params_;
     cv::Mat H_full;
-    const bool ok = use_ground_ipm_
-                      ? configureBoreasGroundIpm(calib_, params, H_full, nullptr)
-                      : configureBoreasManualIpmSrc(calib_, params, H_full, nullptr);
+    const bool ok = use_ground_ipm_ ? configureBoreasGroundIpm(calib_, params, H_full, nullptr)
+                                    : configureBoreasManualIpmSrc(calib_, params, H_full, nullptr);
     if (!ok) {
       RCLCPP_WARN_THROTTLE(
         get_logger(), *get_clock(), 2000, "Boreas IPM configuration failed from camera_info");
@@ -341,7 +332,7 @@ private:
       Job job;
       {
         std::unique_lock<std::mutex> lock(queue_mutex_);
-        queue_cv_.wait(lock, [this] {return shutting_down_ || has_job_;});
+        queue_cv_.wait(lock, [this] { return shutting_down_ || has_job_; });
         if (shutting_down_) {
           return;
         }
@@ -383,7 +374,8 @@ private:
       if (job.compressed.empty()) {
         return;
       }
-      const cv::Mat buf(1, static_cast<int>(job.compressed.size()), CV_8UC1,
+      const cv::Mat buf(
+        1, static_cast<int>(job.compressed.size()), CV_8UC1,
         const_cast<uint8_t *>(job.compressed.data()));
       bgr = cv::imdecode(buf, decodeFlagForReduce(decode_reduce_));
       if (bgr.empty()) {
@@ -395,8 +387,7 @@ private:
       if (decode_reduce_ > 1) {
         cv::resize(
           bgr, bgr,
-          cv::Size(
-            std::max(1, bgr.cols / decode_reduce_), std::max(1, bgr.rows / decode_reduce_)),
+          cv::Size(std::max(1, bgr.cols / decode_reduce_), std::max(1, bgr.rows / decode_reduce_)),
           0.0, 0.0, cv::INTER_AREA);
       }
     }
@@ -427,7 +418,8 @@ private:
     if (std::chrono::duration<double>(now - last_stats_).count() >= 2.0) {
       const double elapsed = std::chrono::duration<double>(now - last_stats_).count();
       const double hz = static_cast<double>(frames_done_) / elapsed;
-      const double avg_ms = frames_done_ > 0 ? proc_ms_sum_ / static_cast<double>(frames_done_) : 0.0;
+      const double avg_ms =
+        frames_done_ > 0 ? proc_ms_sum_ / static_cast<double>(frames_done_) : 0.0;
       RCLCPP_INFO(
         get_logger(), "IPM throughput: %.1f Hz (avg %.1f ms/frame, in %dx%d -> out %dx%d)", hz,
         avg_ms, bgr.cols, bgr.rows, bev.cols, bev.rows);

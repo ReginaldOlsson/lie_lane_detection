@@ -1,8 +1,8 @@
-#include <gtest/gtest.h>
-
-#include "lie_lane_detection/voting/lie_hough_voter.hpp"
 #include "lie_lane_detection/fitting/manifold_ransac.hpp"
 #include "lie_lane_detection/testing/test_helpers.hpp"
+#include "lie_lane_detection/voting/lie_hough_voter.hpp"
+
+#include <gtest/gtest.h>
 
 TEST(CurvedLaneTest, KappaRecoveryWithinTolerance)
 {

@@ -1,9 +1,10 @@
 #pragma once
 
-#include <opencv2/core.hpp>
-#include <vector>
-
 #include "lie_lane_detection/core/types.hpp"
+
+#include <opencv2/core.hpp>
+
+#include <vector>
 
 namespace lie_lane_detection
 {
@@ -17,9 +18,7 @@ public:
 
   /// Otsu binarization on road pixels only; non-road stays 0. Returns Otsu T or -1 on failure.
   static double otsuThresholdMasked(
-    const cv::Mat & gray,
-    const cv::Mat & road_mask,
-    cv::Mat & binary_out);
+    const cv::Mat & gray, const cv::Mat & road_mask, cv::Mat & binary_out);
 
 private:
   PipelineParams params_;

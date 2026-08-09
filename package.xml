@@ -9,22 +9,22 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <depend>rclcpp</depend>
-  <depend>sensor_msgs</depend>
-  <depend>geometry_msgs</depend>
-  <depend>visualization_msgs</depend>
-  <depend>std_msgs</depend>
   <depend>cv_bridge</depend>
+  <depend>eigen</depend>
+  <depend>geometry_msgs</depend>
   <depend>image_transport</depend>
+  <depend>rclcpp</depend>
+  <depend>rosbag2_cpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>sophus</depend>
+  <depend>std_msgs</depend>
   <depend>tf2</depend>
-  <depend>tf2_ros</depend>
   <depend>tf2_geometry_msgs</depend>
   <depend>tf2_msgs</depend>
-  <depend>rosbag2_cpp</depend>
-  <depend>sophus</depend>
-  <depend>eigen</depend>
-  <build_depend>libtbb-dev</build_depend>
+  <depend>tf2_ros</depend>
+  <depend>visualization_msgs</depend>
   <build_depend>libceres-dev</build_depend>
+  <build_depend>libtbb-dev</build_depend>
   <exec_depend>libtbb12</exec_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>spatz_interfaces</exec_depend>

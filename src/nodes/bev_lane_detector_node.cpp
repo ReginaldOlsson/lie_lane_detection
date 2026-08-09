@@ -4,9 +4,6 @@
 #include "lie_lane_detection/pipeline/lane_detection_runner.hpp"
 #include "lie_lane_detection/visualization/visualization.hpp"
 
-#include <algorithm>
-#include <cmath>
-
 #include <cv_bridge/cv_bridge.hpp>
 #include <image_transport/image_transport.hpp>
 #include <rclcpp/rclcpp.hpp>
@@ -16,8 +13,10 @@
 #include <std_msgs/msg/string.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <condition_variable>
 #include <deque>
 #include <memory>
@@ -34,8 +33,7 @@ namespace
 {
 
 bool homographyFromMsg(
-  const std_msgs::msg::Float64MultiArray & msg,
-  cv::Mat & H_out,
+  const std_msgs::msg::Float64MultiArray & msg, cv::Mat & H_out,
   builtin_interfaces::msg::Time * stamp_out = nullptr)
 {
   if (msg.data.size() != 9 && msg.data.size() != 11) {
@@ -65,9 +63,9 @@ public:
     frame_id_(declare_parameter<std::string>("frame_id", "camera_front"))
   {
     const std::string bev_topic = declare_parameter<std::string>("bev_topic", "/ipm/bev");
-    const std::string image_topic = declare_parameter<std::string>("image_topic", "/camera/image_raw");
-    const std::string image_transport =
-      declare_parameter<std::string>("image_transport", "raw");
+    const std::string image_topic =
+      declare_parameter<std::string>("image_topic", "/camera/image_raw");
+    const std::string image_transport = declare_parameter<std::string>("image_transport", "raw");
     const std::string homography_topic =
       declare_parameter<std::string>("homography_topic", "/ipm/homography");
     const std::string frontal_overlay_topic =
@@ -87,8 +85,7 @@ public:
     frontal_overlay_pub_ = image_transport::create_publisher(this, frontal_overlay_topic);
 
     image_sub_ = image_transport::create_subscription(
-      this, image_topic,
-      std::bind(&BevLaneDetectorNode::onImage, this, std::placeholders::_1),
+      this, image_topic, std::bind(&BevLaneDetectorNode::onImage, this, std::placeholders::_1),
       image_transport, rmw_qos_profile_sensor_data);
 
     homography_sub_ = create_subscription<std_msgs::msg::Float64MultiArray>(
@@ -105,8 +102,7 @@ public:
       "  publish: /lanes/detect/{overlay,frontal_overlay,edges,filtered,markers,stats}");
     RCLCPP_INFO(get_logger(), "  frontal overlay: %s", frontal_overlay_topic.c_str());
     RCLCPP_INFO(
-      get_logger(),
-      "  detection input: IPM BGR (bottom mask only; no grayscale/Otsu preprocess)");
+      get_logger(), "  detection input: IPM BGR (bottom mask only; no grayscale/Otsu preprocess)");
 
     // Detection runs on a dedicated worker so the ROS executor never blocks or
     // backlogs; the mailbox always keeps only the newest BEV frame.
@@ -243,20 +239,14 @@ private:
   }
 
   static std::string formatStats(
-    const BevDetectionResult & result,
-    double total_ms,
-    double otsu_threshold)
+    const BevDetectionResult & result, double total_ms, double otsu_threshold)
   {
     std::ostringstream oss;
     oss << "mode=bev"
-        << " lanes=" << result.lanes.size()
-        << " total_ms=" << total_ms
-        << " detect_ms=" << result.elapsed_ms
-        << " edge_ms=" << result.edge_ms
-        << " vote_ms=" << result.vote_ms
-        << " fit_ms=" << result.fit_ms
-        << " post_ms=" << result.post_ms
-        << " edges=" << result.edge_point_count;
+        << " lanes=" << result.lanes.size() << " total_ms=" << total_ms
+        << " detect_ms=" << result.elapsed_ms << " edge_ms=" << result.edge_ms
+        << " vote_ms=" << result.vote_ms << " fit_ms=" << result.fit_ms
+        << " post_ms=" << result.post_ms << " edges=" << result.edge_point_count;
     if (otsu_threshold >= 0.0) {
       oss << " otsu_t=" << otsu_threshold;
     }
@@ -292,7 +282,7 @@ private:
       BevJob job;
       {
         std::unique_lock<std::mutex> lock(job_mutex_);
-        job_cv_.wait(lock, [this] {return !running_ || pending_job_.has_value();});
+        job_cv_.wait(lock, [this] { return !running_ || pending_job_.has_value(); });
         if (!running_) {
           return;
         }
@@ -395,9 +385,8 @@ private:
     stats_pub_->publish(stats);
 
     RCLCPP_INFO_THROTTLE(
-      get_logger(), *get_clock(), 1000,
-      "DETECT | %zu lanes | %.1f ms | %s",
-      det.lanes.size(), total_ms, stats.data.c_str());
+      get_logger(), *get_clock(), 1000, "DETECT | %zu lanes | %.1f ms | %s", det.lanes.size(),
+      total_ms, stats.data.c_str());
   }
 
   PipelineParams params_;

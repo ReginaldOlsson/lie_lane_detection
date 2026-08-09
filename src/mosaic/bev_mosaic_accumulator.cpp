@@ -1,8 +1,8 @@
 #include "lie_lane_detection/mosaic/bev_mosaic_accumulator.hpp"
 
-#include <algorithm>
-
 #include <opencv2/imgproc.hpp>
+
+#include <algorithm>
 
 namespace lie_lane_detection
 {
@@ -16,8 +16,7 @@ cv::Mat identity3x3()
 
 }  // namespace
 
-BevMosaicAccumulator::BevMosaicAccumulator(BevMosaicParams params)
-: params_(std::move(params))
+BevMosaicAccumulator::BevMosaicAccumulator(BevMosaicParams params) : params_(std::move(params))
 {
   reset();
 }
@@ -114,7 +113,8 @@ BevMosaicFrameResult BevMosaicAccumulator::accumulate(const cv::Mat & current_bg
   }
 
   const cv::Mat & prev_bgr = frames_.back().image;
-  BevRegistrationResult motion = estimateBevFrameMotion(prev_bgr, current_bgr, params_.registration);
+  BevRegistrationResult motion =
+    estimateBevFrameMotion(prev_bgr, current_bgr, params_.registration);
 
   cv::Mat relative_3x3 = identity3x3();
   if (motion.valid) {

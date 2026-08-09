@@ -122,13 +122,11 @@ bool ipmMetricDstImageCorners(
 }
 
 bool ipmSrcBevCorners(
-  const cv::Mat & H_img2bev,
-  const PipelineParams & params,
-  std::vector<cv::Point2f> & corners_out)
+  const cv::Mat & H_img2bev, const PipelineParams & params, std::vector<cv::Point2f> & corners_out)
 {
-  if (H_img2bev.empty() || H_img2bev.rows != 3 || H_img2bev.cols != 3 ||
-    params.ipm_src_points.size() < 8)
-  {
+  if (
+    H_img2bev.empty() || H_img2bev.rows != 3 || H_img2bev.cols != 3 ||
+    params.ipm_src_points.size() < 8) {
     return false;
   }
   std::vector<cv::Point2f> src(4);
@@ -151,14 +149,14 @@ std::vector<cv::Point> toPointPoly(const std::vector<cv::Point2f> & pts)
   return poly;
 }
 
-void drawCornerLabels(cv::Mat & image_bgr, const std::vector<cv::Point> & corners, const cv::Scalar & color)
+void drawCornerLabels(
+  cv::Mat & image_bgr, const std::vector<cv::Point> & corners, const cv::Scalar & color)
 {
   static const char * kLabels[] = {"BL", "BR", "TR", "TL"};
   for (int i = 0; i < 4 && i < static_cast<int>(corners.size()); ++i) {
     cv::circle(image_bgr, corners[static_cast<size_t>(i)], 4, color, -1, cv::LINE_AA);
     cv::putText(
-      image_bgr, kLabels[i],
-      corners[static_cast<size_t>(i)] + cv::Point(5, -5),
+      image_bgr, kLabels[i], corners[static_cast<size_t>(i)] + cv::Point(5, -5),
       cv::FONT_HERSHEY_SIMPLEX, 0.45, color, 1, cv::LINE_AA);
   }
 }
@@ -248,17 +246,14 @@ void drawIpmMetricDstOnImage(
 }
 
 cv::Mat buildIpmBevArtifactExclusionMask(
-  const cv::Size & bev_size,
-  const cv::Mat & H_img2bev,
-  const PipelineParams & params,
+  const cv::Size & bev_size, const cv::Mat & H_img2bev, const PipelineParams & params,
   int border_band_px)
 {
   if (bev_size.width <= 0 || bev_size.height <= 0) {
     return cv::Mat();
   }
-  const int band = border_band_px > 0 ?
-    border_band_px :
-    std::max(8, std::min(bev_size.width, bev_size.height) / 80);
+  const int band = border_band_px > 0 ? border_band_px
+                                      : std::max(8, std::min(bev_size.width, bev_size.height) / 80);
   const int thickness = std::max(3, band * 2 + 1);
 
   cv::Mat exclude = cv::Mat::zeros(bev_size, CV_8U);
@@ -279,7 +274,8 @@ cv::Mat buildIpmBevArtifactExclusionMask(
       return;
     }
     const std::vector<cv::Point> poly = toPointPoly(corners);
-    cv::polylines(exclude, std::vector<std::vector<cv::Point>>{poly}, true, cv::Scalar(255), thickness);
+    cv::polylines(
+      exclude, std::vector<std::vector<cv::Point>>{poly}, true, cv::Scalar(255), thickness);
   };
 
   if (!H_img2bev.empty() && params.ipm_src_points.size() >= 8) {

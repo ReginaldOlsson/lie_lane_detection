@@ -1,23 +1,23 @@
 #include "lie_lane_detection/pipeline/lane_detection_runner.hpp"
 
-#include <algorithm>
-#include <chrono>
-
-#include <opencv2/imgproc.hpp>
-
+#include "lie_lane_detection/common/parallel.hpp"
+#include "lie_lane_detection/extraction/merge_topology.hpp"
+#include "lie_lane_detection/extraction/multi_lane_extractor.hpp"
+#include "lie_lane_detection/fitting/manifold_ransac.hpp"
+#include "lie_lane_detection/fitting/road_manifold_fitter.hpp"
+#include "lie_lane_detection/geometry/template_curve.hpp"
 #include "lie_lane_detection/pipeline/detection_common.hpp"
 #include "lie_lane_detection/preprocessing/edge_extractor.hpp"
 #include "lie_lane_detection/preprocessing/ipm_transformer.hpp"
 #include "lie_lane_detection/preprocessing/road_feature_segmenter.hpp"
-#include "lie_lane_detection/voting/lie_hough_voter.hpp"
-#include "lie_lane_detection/voting/coarse_se2_voter.hpp"
-#include "lie_lane_detection/fitting/manifold_ransac.hpp"
-#include "lie_lane_detection/fitting/road_manifold_fitter.hpp"
-#include "lie_lane_detection/extraction/merge_topology.hpp"
-#include "lie_lane_detection/extraction/multi_lane_extractor.hpp"
-#include "lie_lane_detection/common/parallel.hpp"
-#include "lie_lane_detection/geometry/template_curve.hpp"
 #include "lie_lane_detection/visualization/visualization.hpp"
+#include "lie_lane_detection/voting/coarse_se2_voter.hpp"
+#include "lie_lane_detection/voting/lie_hough_voter.hpp"
+
+#include <opencv2/imgproc.hpp>
+
+#include <algorithm>
+#include <chrono>
 
 namespace lie_lane_detection
 {
@@ -35,12 +35,10 @@ void configureParamsForBev(PipelineParams & params, int cols, int rows)
   params.se2_omega_max = 0.2;
   params.kappa_bins = 11;
   params.sigma_bins = 9;
-  params.min_lane_separation_px = std::max(
-    params.min_lane_separation_px,
-    std::max(35.0, static_cast<double>(cols) / 8.0));
-  params.peel_edge_margin_px = std::max(
-    params.peel_edge_margin_px,
-    std::max(12.0, params.inlier_threshold_px * 1.5));
+  params.min_lane_separation_px =
+    std::max(params.min_lane_separation_px, std::max(35.0, static_cast<double>(cols) / 8.0));
+  params.peel_edge_margin_px =
+    std::max(params.peel_edge_margin_px, std::max(12.0, params.inlier_threshold_px * 1.5));
 
   // Hood crop defaults target ~800px highway BEV; clamp for small metric IPM footprints.
   if (rows > 0) {
@@ -56,9 +54,8 @@ void configureParamsForBev(PipelineParams & params, int cols, int rows)
 
   const int area = std::max(1, cols * rows);
   params.min_inliers = std::min(params.min_inliers, std::max(5, area / 120));
-  params.min_lane_separation_px = std::min(
-    params.min_lane_separation_px,
-    std::max(3.0, static_cast<double>(cols) / 6.0));
+  params.min_lane_separation_px =
+    std::min(params.min_lane_separation_px, std::max(3.0, static_cast<double>(cols) / 6.0));
   if (params.min_lane_inlier_y_span_px <= 0.0) {
     params.min_lane_inlier_y_span_px = 0.22 * static_cast<double>(rows);
   }
@@ -88,10 +85,7 @@ void updateIpmDstFromBevExtent(PipelineParams & params)
   const double half_w = 0.5 * params.bev_width_m;
   const double length = params.bev_length_m;
   params.ipm_dst_points = {
-    -half_w, 0.0,
-    half_w, 0.0,
-    half_w, length,
-    -half_w, length,
+    -half_w, 0.0, half_w, 0.0, half_w, length, -half_w, length,
   };
 }
 
@@ -101,10 +95,14 @@ void setDefaultHighwayIpmRoi(PipelineParams & params, int cols, int rows)
   const double h = static_cast<double>(rows);
   updateIpmDstFromBevExtent(params);
   params.ipm_src_points = {
-    params.ipm_bottom_x_min_ratio * w, params.ipm_bottom_y_ratio * h,
-    params.ipm_bottom_x_max_ratio * w, params.ipm_bottom_y_ratio * h,
-    0.58 * w, 0.48 * h,
-    0.42 * w, 0.48 * h,
+    params.ipm_bottom_x_min_ratio * w,
+    params.ipm_bottom_y_ratio * h,
+    params.ipm_bottom_x_max_ratio * w,
+    params.ipm_bottom_y_ratio * h,
+    0.58 * w,
+    0.48 * h,
+    0.42 * w,
+    0.48 * h,
   };
 }
 
@@ -178,9 +176,7 @@ cv::Mat warpPerspectiveToBev(const cv::Mat & image_bgr, const PipelineParams & p
 }
 
 BevDetectionResult detectLanesInBev(
-  const cv::Mat & bev_bgr,
-  PipelineParams params,
-  bool configure_params,
+  const cv::Mat & bev_bgr, PipelineParams params, bool configure_params,
   RoadFeatureSegmenter * road_segmenter)
 {
   const auto t0 = std::chrono::steady_clock::now();
@@ -206,9 +202,7 @@ BevDetectionResult detectLanesInBev(
   }
 
   TemplateCurve template_curve(params);
-  template_curve.setBevExtents(
-    0.0, y_max,
-    0.0, static_cast<double>(bev_bgr.cols));
+  template_curve.setBevExtents(0.0, y_max, 0.0, static_cast<double>(bev_bgr.cols));
 
   EdgeExtractor edge_extractor(params);
   cv::Mat edges_img;
@@ -235,10 +229,8 @@ BevDetectionResult detectLanesInBev(
   }
 
   const double border_margin = static_cast<double>(bev_bgr.cols) * params.edge_border_margin_ratio;
-  auto working_edges = filterBorderEdges(
-    all_edges,
-    border_margin,
-    static_cast<double>(bev_bgr.cols) - border_margin);
+  auto working_edges =
+    filterBorderEdges(all_edges, border_margin, static_cast<double>(bev_bgr.cols) - border_margin);
   working_edges = filterBevYMaxEdges(working_edges, y_max);
 
   constexpr size_t kMaxVoteEdges = 18000;
@@ -262,13 +254,14 @@ BevDetectionResult detectLanesInBev(
         if (iter_seeds.empty()) {
           break;
         }
-        LaneHypothesis best = pickBestSeed(iter_seeds, remaining, ransac, refined, params, y_max, &template_curve);
+        LaneHypothesis best =
+          pickBestSeed(iter_seeds, remaining, ransac, refined, params, y_max, &template_curve);
         if (best.score <= 0.0 || !passesQualityGate(best, params, y_max, &template_curve)) {
           break;
         }
         refined.push_back(best);
-        remaining = peelEdgesNearCurve(
-          remaining, template_curve, best.xi, params.peel_edge_margin_px);
+        remaining =
+          peelEdgesNearCurve(remaining, template_curve, best.xi, params.peel_edge_margin_px);
       }
       if (params.use_road_manifold_joint && refined.size() >= 2) {
         RoadManifoldFitter road_fitter(params, &template_curve);
@@ -292,11 +285,9 @@ BevDetectionResult detectLanesInBev(
       std::remove_if(
         result.lanes.begin(), result.lanes.end(),
         [&params, &y_max, &template_curve](const LaneHypothesis & lane) {
-          if (lane.xi[0] < params.se2_vx_min ||
-            lane.xi[0] > params.se2_vx_max ||
-            lane.inlier_ratio < params.min_inlier_ratio ||
-            isBorderLane(lane, params))
-          {
+          if (
+            lane.xi[0] < params.se2_vx_min || lane.xi[0] > params.se2_vx_max ||
+            lane.inlier_ratio < params.min_inlier_ratio || isBorderLane(lane, params)) {
             return true;
           }
           return !passesQualityGate(lane, params, y_max, &template_curve);
@@ -330,23 +321,24 @@ BevDetectionResult detectLanesInBev(
       const auto seeds = voter.vote(remaining, hough_ptr);
       result.vote_ms +=
         std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t_vote0)
-        .count();
+          .count();
       if (seeds.empty()) {
         break;
       }
 
       const auto t_fit0 = std::chrono::steady_clock::now();
-      LaneHypothesis best = pickBestSeed(seeds, remaining, ransac, refined, params, y_max, &template_curve);
+      LaneHypothesis best =
+        pickBestSeed(seeds, remaining, ransac, refined, params, y_max, &template_curve);
       result.fit_ms +=
         std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t_fit0)
-        .count();
+          .count();
       if (best.score <= 0.0 || !passesQualityGate(best, params, y_max, &template_curve)) {
         break;
       }
 
       refined.push_back(best);
-      remaining = peelEdgesNearCurve(
-        remaining, template_curve, best.xi, params.peel_edge_margin_px);
+      remaining =
+        peelEdgesNearCurve(remaining, template_curve, best.xi, params.peel_edge_margin_px);
     }
   } else {
     const auto t_vote0 = std::chrono::steady_clock::now();
@@ -356,8 +348,7 @@ BevDetectionResult detectLanesInBev(
     refined.resize(seeds.size());
     const auto t_fit0 = std::chrono::steady_clock::now();
     tbb::parallel_for(
-      tbb::blocked_range<size_t>(0, seeds.size()),
-      [&](const tbb::blocked_range<size_t> & range) {
+      tbb::blocked_range<size_t>(0, seeds.size()), [&](const tbb::blocked_range<size_t> & range) {
         for (size_t i = range.begin(); i != range.end(); ++i) {
           refined[i] = ransac.fit(seeds[i], working_edges);
         }
@@ -375,11 +366,9 @@ BevDetectionResult detectLanesInBev(
     std::remove_if(
       result.lanes.begin(), result.lanes.end(),
       [&params, &y_max, &template_curve](const LaneHypothesis & lane) {
-        if (lane.xi[0] < params.se2_vx_min ||
-            lane.xi[0] > params.se2_vx_max ||
-            lane.inlier_ratio < params.min_inlier_ratio ||
-            isBorderLane(lane, params))
-        {
+        if (
+          lane.xi[0] < params.se2_vx_min || lane.xi[0] > params.se2_vx_max ||
+          lane.inlier_ratio < params.min_inlier_ratio || isBorderLane(lane, params)) {
           return true;
         }
         return !passesQualityGate(lane, params, y_max, &template_curve);

@@ -36,12 +36,12 @@ for (each frame) {
 
 ## API
 
-| Function | Purpose |
-|----------|---------|
-| `estimateVanishingPoint()` | VP only |
-| `configureAutoIpmRoi()` | Build trapezoid from VP |
-| `estimateFrontalHomography()` | Full pipeline: VP → H → BEV |
-| `warpFrontalAutoIpm()` | Convenience warp with optional debug viz |
+| Function                      | Purpose                                  |
+| ----------------------------- | ---------------------------------------- |
+| `estimateVanishingPoint()`    | VP only                                  |
+| `configureAutoIpmRoi()`       | Build trapezoid from VP                  |
+| `estimateFrontalHomography()` | Full pipeline: VP → H → BEV              |
+| `warpFrontalAutoIpm()`        | Convenience warp with optional debug viz |
 
 `FrontalHomographyResult` includes `H_img2bev`, `params.ipm_src_points`, `bev`, and `debug_roi` (trapezoid drawn on input).
 
@@ -49,10 +49,10 @@ for (each frame) {
 
 Split IPM from detection for independent tuning:
 
-| Node | Input | Output |
-|------|-------|--------|
-| `frontal_ipm_node` | `/camera/image_raw` | `/ipm/bev`, `/ipm/debug/roi`, `/ipm/homography` |
-| `bev_lane_detector_node` | `/ipm/bev` | `/lanes/detect/{overlay,edges,markers,stats}` |
+| Node                     | Input               | Output                                          |
+| ------------------------ | ------------------- | ----------------------------------------------- |
+| `frontal_ipm_node`       | `/camera/image_raw` | `/ipm/bev`, `/ipm/debug/roi`, `/ipm/homography` |
+| `bev_lane_detector_node` | `/ipm/bev`          | `/lanes/detect/{overlay,edges,markers,stats}`   |
 
 ```bash
 ros2 launch lie_lane_detection truck_bev_pipeline.launch.xml use_video_publisher:=true

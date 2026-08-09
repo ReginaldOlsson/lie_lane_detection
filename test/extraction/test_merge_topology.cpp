@@ -1,7 +1,7 @@
-#include <gtest/gtest.h>
-
 #include "lie_lane_detection/extraction/merge_topology.hpp"
 #include "lie_lane_detection/testing/test_helpers.hpp"
+
+#include <gtest/gtest.h>
 
 TEST(MergeTopologyTest, LabelsConvergingPairAsMerge)
 {

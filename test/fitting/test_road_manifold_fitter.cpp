@@ -1,7 +1,7 @@
-#include <gtest/gtest.h>
-
 #include "lie_lane_detection/fitting/road_manifold_fitter.hpp"
 #include "lie_lane_detection/testing/test_helpers.hpp"
+
+#include <gtest/gtest.h>
 
 TEST(RoadManifoldFitter, parallelLanesStaySeparated)
 {
@@ -22,17 +22,17 @@ TEST(RoadManifoldFitter, parallelLanesStaySeparated)
 
   std::vector<lie_lane_detection::LineSegment> lines;
   const auto add_vertical_line = [&](double x, double y0, double y1) {
-      lie_lane_detection::LineSegment seg;
-      seg.x1 = x;
-      seg.y1 = y0;
-      seg.x2 = x;
-      seg.y2 = y1;
-      seg.length = std::abs(y1 - y0);
-      seg.angle = std::atan2(seg.y2 - seg.y1, seg.x2 - seg.x1);
-      seg.mx = 0.5 * (seg.x1 + seg.x2);
-      seg.my = 0.5 * (seg.y1 + seg.y2);
-      lines.push_back(seg);
-    };
+    lie_lane_detection::LineSegment seg;
+    seg.x1 = x;
+    seg.y1 = y0;
+    seg.x2 = x;
+    seg.y2 = y1;
+    seg.length = std::abs(y1 - y0);
+    seg.angle = std::atan2(seg.y2 - seg.y1, seg.x2 - seg.x1);
+    seg.mx = 0.5 * (seg.x1 + seg.x2);
+    seg.my = 0.5 * (seg.y1 + seg.y2);
+    lines.push_back(seg);
+  };
   for (int i = 0; i < 12; ++i) {
     add_vertical_line(-40.0, 20.0 + i * 10.0, 40.0 + i * 10.0);
     add_vertical_line(40.0, 20.0 + i * 10.0, 40.0 + i * 10.0);

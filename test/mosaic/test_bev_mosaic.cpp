@@ -1,11 +1,11 @@
-#include <gtest/gtest.h>
+#include "lie_lane_detection/mosaic/bev_mosaic_accumulator.hpp"
+#include "lie_lane_detection/mosaic/bev_orb_matcher.hpp"
+#include "lie_lane_detection/mosaic/bev_registration.hpp"
 
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 
-#include "lie_lane_detection/mosaic/bev_mosaic_accumulator.hpp"
-#include "lie_lane_detection/mosaic/bev_orb_matcher.hpp"
-#include "lie_lane_detection/mosaic/bev_registration.hpp"
+#include <gtest/gtest.h>
 
 namespace lie_lane_detection
 {

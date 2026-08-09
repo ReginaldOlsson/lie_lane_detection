@@ -6,18 +6,18 @@
 // Usage:
 //   benchmark_bev_detection [--image PATH] [--iters N] [--warmup W]
 
+#include "lie_lane_detection/geometry/template_curve.hpp"
+#include "lie_lane_detection/pipeline/lane_detection_runner.hpp"
+
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgproc.hpp>
+
 #include <algorithm>
 #include <array>
 #include <chrono>
 #include <iostream>
 #include <string>
 #include <vector>
-
-#include <opencv2/imgcodecs.hpp>
-#include <opencv2/imgproc.hpp>
-
-#include "lie_lane_detection/geometry/template_curve.hpp"
-#include "lie_lane_detection/pipeline/lane_detection_runner.hpp"
 
 namespace lie = lie_lane_detection;
 
@@ -48,8 +48,7 @@ cv::Mat makeSyntheticBev(const lie::PipelineParams & params)
     const auto poly = curve.samplePolyline(xi, 120);
     for (size_t i = 1; i < poly.size(); ++i) {
       cv::line(
-        bev,
-        cv::Point(static_cast<int>(poly[i - 1].x()), static_cast<int>(poly[i - 1].y())),
+        bev, cv::Point(static_cast<int>(poly[i - 1].x()), static_cast<int>(poly[i - 1].y())),
         cv::Point(static_cast<int>(poly[i].x()), static_cast<int>(poly[i].y())),
         cv::Scalar(220, 220, 220), 3);
     }

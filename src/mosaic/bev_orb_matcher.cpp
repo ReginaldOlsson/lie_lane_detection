@@ -4,13 +4,13 @@
 
 #include "lie_lane_detection/mosaic/bev_orb_matcher.hpp"
 
+#include <opencv2/features2d.hpp>
+#include <opencv2/flann.hpp>
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <vector>
-
-#include <opencv2/features2d.hpp>
-#include <opencv2/flann.hpp>
 
 namespace lie_lane_detection
 {
@@ -20,21 +20,12 @@ namespace
 cv::Ptr<cv::ORB> makeOrbDetector(const BevOrbParams & params)
 {
   return cv::ORB::create(
-    params.extract_count,
-    static_cast<float>(params.scale_factor),
-    params.nlevels,
-    31,
-    0,
-    2,
-    cv::ORB::HARRIS_SCORE,
-    31,
-    params.fast_threshold);
+    params.extract_count, static_cast<float>(params.scale_factor), params.nlevels, 31, 0, 2,
+    cv::ORB::HARRIS_SCORE, 31, params.fast_threshold);
 }
 
 std::vector<cv::DMatch> matchFlannLsh(
-  const cv::Mat & desc_prev,
-  const cv::Mat & desc_curr,
-  double xiang_gao_ratio)
+  const cv::Mat & desc_prev, const cv::Mat & desc_curr, double xiang_gao_ratio)
 {
   if (desc_prev.empty() || desc_curr.empty()) {
     return {};
@@ -64,9 +55,7 @@ std::vector<cv::DMatch> matchFlannLsh(
 }
 
 std::vector<cv::DMatch> matchLoweBf(
-  const cv::Mat & desc_prev,
-  const cv::Mat & desc_curr,
-  double lowe_ratio)
+  const cv::Mat & desc_prev, const cv::Mat & desc_curr, double lowe_ratio)
 {
   if (desc_prev.empty() || desc_curr.empty()) {
     return {};
@@ -90,10 +79,7 @@ std::vector<cv::DMatch> matchLoweBf(
 }
 
 std::vector<cv::DMatch> matchRadiusBrute(
-  const BevOrbFeatures & prev,
-  const BevOrbFeatures & curr,
-  int radius_px,
-  double xiang_gao_ratio)
+  const BevOrbFeatures & prev, const BevOrbFeatures & curr, int radius_px, double xiang_gao_ratio)
 {
   const int n_prev = static_cast<int>(prev.keypoints.size());
   const int n_curr = static_cast<int>(curr.keypoints.size());
@@ -120,8 +106,8 @@ std::vector<cv::DMatch> matchRadiusBrute(
 
       cv::Mat diff;
       cv::absdiff(prev.descriptors.row(i), curr.descriptors.row(j), diff);
-      const float dist = static_cast<float>(cv::sum(diff)[0]) /
-        static_cast<float>(prev.descriptors.cols);
+      const float dist =
+        static_cast<float>(cv::sum(diff)[0]) / static_cast<float>(prev.descriptors.cols);
       if (dist < best_dist) {
         best_dist = dist;
         best_j = j;
@@ -156,12 +142,8 @@ std::vector<cv::DMatch> matchRadiusBrute(
 }  // namespace
 
 void selectUniformKeypointsByGrid(
-  std::vector<cv::KeyPoint> & keypoints,
-  int image_rows,
-  int image_cols,
-  int grid_cell_px,
-  int max_per_cell,
-  int max_total)
+  std::vector<cv::KeyPoint> & keypoints, int image_rows, int image_cols, int grid_cell_px,
+  int max_per_cell, int max_total)
 {
   if (keypoints.empty() || grid_cell_px <= 0 || max_per_cell <= 0 || max_total <= 0) {
     return;
@@ -170,8 +152,7 @@ void selectUniformKeypointsByGrid(
   const int rows = std::max(1, image_rows / grid_cell_px);
   const int cols = std::max(1, image_cols / grid_cell_px);
   std::vector<std::vector<int>> grid(
-    static_cast<size_t>(rows),
-    std::vector<int>(static_cast<size_t>(cols), 0));
+    static_cast<size_t>(rows), std::vector<int>(static_cast<size_t>(cols), 0));
 
   std::vector<cv::KeyPoint> selected;
   selected.reserve(static_cast<size_t>(max_total));
@@ -195,11 +176,9 @@ void removeDuplicatedTrainMatches(std::vector<cv::DMatch> & matches)
   if (matches.size() < 2) {
     return;
   }
-  std::sort(
-    matches.begin(), matches.end(),
-    [](const cv::DMatch & a, const cv::DMatch & b) {
-      return a.trainIdx < b.trainIdx;
-    });
+  std::sort(matches.begin(), matches.end(), [](const cv::DMatch & a, const cv::DMatch & b) {
+    return a.trainIdx < b.trainIdx;
+  });
 
   std::vector<cv::DMatch> unique;
   unique.reserve(matches.size());
@@ -213,9 +192,7 @@ void removeDuplicatedTrainMatches(std::vector<cv::DMatch> & matches)
 }
 
 BevOrbFeatures extractBevOrb(
-  const cv::Mat & gray,
-  const cv::Mat & mask,
-  const BevOrbParams & params)
+  const cv::Mat & gray, const cv::Mat & mask, const BevOrbParams & params)
 {
   BevOrbFeatures out;
   if (gray.empty()) {
@@ -225,29 +202,21 @@ BevOrbFeatures extractBevOrb(
   cv::Ptr<cv::ORB> detector = makeOrbDetector(params);
   detector->detect(gray, out.keypoints, mask);
   selectUniformKeypointsByGrid(
-    out.keypoints,
-    gray.rows,
-    gray.cols,
-    params.grid_cell_px,
-    params.max_per_cell,
+    out.keypoints, gray.rows, gray.cols, params.grid_cell_px, params.max_per_cell,
     params.uniform_cap);
 
   if (out.keypoints.empty()) {
     return out;
   }
 
-  cv::Ptr<cv::ORB> computer = cv::ORB::create(
-    params.extract_count,
-    static_cast<float>(params.scale_factor),
-    params.nlevels);
+  cv::Ptr<cv::ORB> computer =
+    cv::ORB::create(params.extract_count, static_cast<float>(params.scale_factor), params.nlevels);
   computer->compute(gray, out.keypoints, out.descriptors);
   return out;
 }
 
 std::vector<cv::DMatch> matchBevOrb(
-  const BevOrbFeatures & prev,
-  const BevOrbFeatures & curr,
-  const BevOrbParams & params)
+  const BevOrbFeatures & prev, const BevOrbFeatures & curr, const BevOrbParams & params)
 {
   std::vector<cv::DMatch> matches;
   switch (params.match_method) {

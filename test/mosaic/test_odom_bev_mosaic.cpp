@@ -1,10 +1,11 @@
+#include "lie_lane_detection/mosaic/odom_bev_mosaic_accumulator.hpp"
+#include "lie_lane_detection/mosaic/pose_buffer.hpp"
+
+#include <opencv2/imgproc.hpp>
+
 #include <gtest/gtest.h>
 
 #include <cmath>
-#include <opencv2/imgproc.hpp>
-
-#include "lie_lane_detection/mosaic/odom_bev_mosaic_accumulator.hpp"
-#include "lie_lane_detection/mosaic/pose_buffer.hpp"
 
 namespace lie_lane_detection
 {

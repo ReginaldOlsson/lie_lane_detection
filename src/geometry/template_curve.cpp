@@ -7,8 +7,7 @@
 namespace lie_lane_detection
 {
 
-TemplateCurve::TemplateCurve(const PipelineParams & params)
-: params_(params)
+TemplateCurve::TemplateCurve(const PipelineParams & params) : params_(params)
 {
   setBevExtents(0.0, 1.0, -1.0, 1.0);
 }
@@ -92,8 +91,8 @@ double TemplateCurve::distanceInLocalFrame(
   for (int iter = 0; iter < kNewtonIters; ++iter) {
     const double xc = (A * t + B) * t;
     const double yc = y_min_ + y_span * t;
-    const double xc_p = 2.0 * A * t + B;   // x_c'(t)
-    const double yc_p = y_span;            // y_c'(t)
+    const double xc_p = 2.0 * A * t + B;  // x_c'(t)
+    const double yc_p = y_span;           // y_c'(t)
     // d(d^2)/dt = 2[(xc-a) xc' + (yc-b) yc']
     const double grad = (xc - a) * xc_p + (yc - b) * yc_p;
     // d^2(d^2)/dt^2 = 2[xc'^2 + (xc-a) xc'' + yc'^2], with xc'' = 2A
@@ -117,7 +116,9 @@ double TemplateCurve::distanceInLocalFrame(
 
 Vec2 TemplateCurve::nearestPoint(const XiVector & xi, const Vec2 & p, double * nearest_t) const
 {
-  if (std::abs(xi[3]) < 1e-4 && std::abs(xi[4]) < 1e-4 && std::abs(xi[2]) < 0.03 && std::abs(xi[1]) < 0.5) {
+  if (
+    std::abs(xi[3]) < 1e-4 && std::abs(xi[4]) < 1e-4 && std::abs(xi[2]) < 0.03 &&
+    std::abs(xi[1]) < 0.5) {
     const double y = std::clamp(p.y(), y_min_, y_max_);
     const double t = (y_max_ > y_min_) ? (y - y_min_) / (y_max_ - y_min_) : 0.0;
     if (nearest_t) {

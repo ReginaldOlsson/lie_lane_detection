@@ -106,7 +106,9 @@ def list_images(folder: Path) -> list[Path]:
     return sorted(p for p in folder.iterdir() if p.suffix.lower() in exts)
 
 
-def load_pair(img_path: Path, label_path: Path, width: int, height: int) -> tuple[np.ndarray, np.ndarray]:
+def load_pair(
+    img_path: Path, label_path: Path, width: int, height: int
+) -> tuple[np.ndarray, np.ndarray]:
     bgr = cv2.imread(str(img_path), cv2.IMREAD_COLOR)
     if bgr is None:
         raise FileNotFoundError(img_path)

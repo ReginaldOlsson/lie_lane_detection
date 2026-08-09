@@ -3,15 +3,15 @@
 // Usage:
 //   estimate_frontal_homography --image PATH --output DIR
 
-#include <filesystem>
-#include <fstream>
-#include <iostream>
-#include <iomanip>
+#include "lie_lane_detection/pipeline/lane_detection_runner.hpp"
+#include "lie_lane_detection/preprocessing/auto_frontal_ipm.hpp"
 
 #include <opencv2/imgcodecs.hpp>
 
-#include "lie_lane_detection/preprocessing/auto_frontal_ipm.hpp"
-#include "lie_lane_detection/pipeline/lane_detection_runner.hpp"
+#include <filesystem>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
 
 namespace fs = std::filesystem;
 
@@ -27,9 +27,8 @@ int main(int argc, char ** argv)
     } else if (arg == "--output" && i + 1 < argc) {
       output_dir = fs::path(argv[++i]);
     } else if (arg == "--help" || arg == "-h") {
-      std::cout <<
-        "Usage: estimate_frontal_homography --image PATH [--output DIR]\n"
-        "  Estimates vanishing point, ipm_src_points, homography H, and BEV warp.\n";
+      std::cout << "Usage: estimate_frontal_homography --image PATH [--output DIR]\n"
+                   "  Estimates vanishing point, ipm_src_points, homography H, and BEV warp.\n";
       return 0;
     }
   }
@@ -60,8 +59,8 @@ int main(int argc, char ** argv)
   report << "Valid: " << (hg.valid ? "yes" : "no") << "\n";
   report << "Fallback highway ROI: " << (hg.used_fallback_roi ? "yes" : "no") << "\n";
   report << "Vanishing point: (" << hg.vanishing_point.x << ", " << hg.vanishing_point.y
-         << ") conf=" << hg.vanishing_point.confidence
-         << " valid=" << hg.vanishing_point.valid << "\n\n";
+         << ") conf=" << hg.vanishing_point.confidence << " valid=" << hg.vanishing_point.valid
+         << "\n\n";
 
   report << "ipm_src_points (px): ";
   for (size_t i = 0; i < hg.params.ipm_src_points.size(); i += 2) {

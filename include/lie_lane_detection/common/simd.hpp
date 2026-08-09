@@ -6,10 +6,7 @@ namespace lie_lane_detection
 {
 
 /// Scalar batch helpers (4-wide unroll); AVX path can replace these later.
-inline void accumulateWeightedBatch4(
-  double * dst,
-  const double * weights,
-  size_t count)
+inline void accumulateWeightedBatch4(double * dst, const double * weights, size_t count)
 {
   size_t i = 0;
   for (; i + 4 <= count; i += 4) {

@@ -1,14 +1,14 @@
 #include "lie_lane_detection/voting/coarse_se2_voter.hpp"
 
+#include "lie_lane_detection/common/parallel.hpp"
+#include "lie_lane_detection/voting/sparse_accumulator.hpp"
+
+#include <opencv2/imgproc.hpp>
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <utility>
-
-#include <opencv2/imgproc.hpp>
-
-#include "lie_lane_detection/common/parallel.hpp"
-#include "lie_lane_detection/voting/sparse_accumulator.hpp"
 
 namespace lie_lane_detection
 {
@@ -48,19 +48,13 @@ XiVector gridToXi(const CoarseSE2Voter::GridConfig & grid, int ix, int iy, int i
 }
 
 void splatTrilinear(
-  std::vector<double> & accum,
-  const CoarseSE2Voter::GridConfig & grid,
-  double fx,
-  double fy,
-  double fo,
-  double weight)
+  std::vector<double> & accum, const CoarseSE2Voter::GridConfig & grid, double fx, double fy,
+  double fo, double weight)
 {
   const int vx_bins = grid.vx_bins;
   const int vy_bins = grid.vy_bins;
   const int omega_bins = grid.omega_bins;
-  const auto clampi = [](int v, int lo, int hi) {
-      return std::clamp(v, lo, hi);
-    };
+  const auto clampi = [](int v, int lo, int hi) { return std::clamp(v, lo, hi); };
 
   const double ix_f = fx * static_cast<double>(std::max(vx_bins - 1, 1));
   const double iy_f = fy * static_cast<double>(std::max(vy_bins - 1, 1));
@@ -78,11 +72,11 @@ void splatTrilinear(
   const double to = io_f - static_cast<double>(io0);
 
   const auto add = [&](int ix, int iy, int io, double w) {
-      const size_t idx = static_cast<size_t>(flatBinIndex(ix, iy, io, vx_bins, vy_bins));
-      if (idx < accum.size()) {
-        accum[idx] += weight * w;
-      }
-    };
+    const size_t idx = static_cast<size_t>(flatBinIndex(ix, iy, io, vx_bins, vy_bins));
+    if (idx < accum.size()) {
+      accum[idx] += weight * w;
+    }
+  };
 
   for (int dio = 0; dio <= 1; ++dio) {
     for (int diy = 0; diy <= 1; ++diy) {
@@ -131,7 +125,8 @@ CoarseSE2Voter::GridConfig CoarseSE2Voter::makeRefineGrid(const SE2PeakCandidate
   g.vx_bins = std::min(params_.se2_vx_bins, g.vx_bins * factor);
   g.omega_bins = std::min(params_.se2_omega_bins, g.omega_bins * factor);
   const double vx_span = (params_.se2_vx_max - params_.se2_vx_min) / static_cast<double>(g.vx_bins);
-  const double om_span = (params_.se2_omega_max - params_.se2_omega_min) / static_cast<double>(g.omega_bins);
+  const double om_span =
+    (params_.se2_omega_max - params_.se2_omega_min) / static_cast<double>(g.omega_bins);
   g.vx_min = std::max(params_.se2_vx_min, peak.vx - vx_span * 3.0);
   g.vx_max = std::min(params_.se2_vx_max, peak.vx + vx_span * 3.0);
   g.omega_min = std::max(params_.se2_omega_min, peak.omega - om_span * 3.0);
@@ -140,9 +135,7 @@ CoarseSE2Voter::GridConfig CoarseSE2Voter::makeRefineGrid(const SE2PeakCandidate
 }
 
 double CoarseSE2Voter::softVoteWeight(
-  double dist_sq,
-  double feature_weight,
-  double angle_err_rad) const
+  double dist_sq, double feature_weight, double angle_err_rad) const
 {
   const double sigma_sq = std::max(1.0, params_.soft_vote_sigma_px * params_.soft_vote_sigma_px);
   const double vote_thresh_sq = params_.vote_threshold_px * params_.vote_threshold_px;
@@ -150,16 +143,14 @@ double CoarseSE2Voter::softVoteWeight(
     return 0.0;
   }
   const double w_dist = std::exp(-dist_sq / (2.0 * sigma_sq));
-  const double w_ang = params_.use_soft_voting ?
-    std::max(0.0, std::cos(angle_err_rad)) :
-    (angle_err_rad < params_.line_angle_threshold_rad ? 1.0 : 0.0);
+  const double w_ang = params_.use_soft_voting
+                         ? std::max(0.0, std::cos(angle_err_rad))
+                         : (angle_err_rad < params_.line_angle_threshold_rad ? 1.0 : 0.0);
   return feature_weight * w_dist * w_ang;
 }
 
 void CoarseSE2Voter::voteEdgesIntoAccum(
-  const std::vector<EdgePoint> & edges,
-  const GridConfig & grid,
-  std::vector<double> & accum) const
+  const std::vector<EdgePoint> & edges, const GridConfig & grid, std::vector<double> & accum) const
 {
   const int se2_cells = grid.vx_bins * grid.vy_bins * grid.omega_bins;
   accum.assign(static_cast<size_t>(se2_cells), 0.0);
@@ -167,7 +158,8 @@ void CoarseSE2Voter::voteEdgesIntoAccum(
   const double vote_thresh_sq = params_.vote_threshold_px * params_.vote_threshold_px;
   const double vx_span = std::max(1e-6, grid.vx_max - grid.vx_min);
   const double vx_bin_w = vx_span / static_cast<double>(std::max(grid.vx_bins - 1, 1));
-  const int ix_radius = std::max(1, static_cast<int>(std::ceil(params_.vote_threshold_px / vx_bin_w)) + 1);
+  const int ix_radius =
+    std::max(1, static_cast<int>(std::ceil(params_.vote_threshold_px / vx_bin_w)) + 1);
 
   accum = tbb::parallel_reduce(
     tbb::blocked_range<size_t>(0, edges.size()),
@@ -175,9 +167,9 @@ void CoarseSE2Voter::voteEdgesIntoAccum(
     [&](const tbb::blocked_range<size_t> & range, std::vector<double> local) {
       for (size_t ei = range.begin(); ei != range.end(); ++ei) {
         const EdgePoint & edge = edges[ei];
-        if (params_.use_longitudinal_line_filter &&
-          !isLongitudinalSegment(edge.orientation, params_.longitudinal_max_deviation_rad))
-        {
+        if (
+          params_.use_longitudinal_line_filter &&
+          !isLongitudinalSegment(edge.orientation, params_.longitudinal_max_deviation_rad)) {
           continue;
         }
         const Vec2 p(edge.x, edge.y);
@@ -201,14 +193,16 @@ void CoarseSE2Voter::voteEdgesIntoAccum(
               }
               const Vec2 tau = template_curve_->tangentAt(xi, 0.5);
               const double curve_angle = std::atan2(tau.y(), tau.x());
-              const double w = softVoteWeight(dist_sq, edge.magnitude, angleDiff(curve_angle, edge.orientation));
+              const double w =
+                softVoteWeight(dist_sq, edge.magnitude, angleDiff(curve_angle, edge.orientation));
               if (w <= 0.0) {
                 continue;
               }
               if (params_.use_soft_voting) {
                 const double fx = (xi[0] - grid.vx_min) / vx_span;
                 const double fy = (xi[1] - grid.vy_min) / std::max(1e-6, grid.vy_max - grid.vy_min);
-                const double fo = (xi[2] - grid.omega_min) / std::max(1e-6, grid.omega_max - grid.omega_min);
+                const double fo =
+                  (xi[2] - grid.omega_min) / std::max(1e-6, grid.omega_max - grid.omega_min);
                 splatTrilinear(local, grid, fx, fy, fo, w);
               } else {
                 const int idx = flatBinIndex(ix, iy, io, grid.vx_bins, grid.vy_bins);
@@ -227,8 +221,7 @@ void CoarseSE2Voter::voteEdgesIntoAccum(
 }
 
 void CoarseSE2Voter::voteLinesIntoAccum(
-  const std::vector<LineSegment> & lines,
-  const GridConfig & grid,
+  const std::vector<LineSegment> & lines, const GridConfig & grid,
   std::vector<double> & accum) const
 {
   std::vector<EdgePoint> pseudo;
@@ -245,8 +238,7 @@ void CoarseSE2Voter::voteLinesIntoAccum(
 }
 
 std::vector<SE2PeakCandidate> CoarseSE2Voter::extractPeaks(
-  const std::vector<double> & accum,
-  const GridConfig & grid) const
+  const std::vector<double> & accum, const GridConfig & grid) const
 {
   std::vector<SE2PeakCandidate> peaks;
   for (int io = 0; io < grid.omega_bins; ++io) {
@@ -265,8 +257,8 @@ std::vector<SE2PeakCandidate> CoarseSE2Voter::extractPeaks(
     }
   }
   std::sort(peaks.begin(), peaks.end(), [](const SE2PeakCandidate & a, const SE2PeakCandidate & b) {
-      return a.votes > b.votes;
-    });
+    return a.votes > b.votes;
+  });
   if (static_cast<int>(peaks.size()) > params_.pyramid_refine_top_k) {
     peaks.resize(static_cast<size_t>(params_.pyramid_refine_top_k));
   }
@@ -277,8 +269,7 @@ std::vector<SE2PeakCandidate> CoarseSE2Voter::extractPeaks(
 }
 
 std::vector<LaneHypothesis> CoarseSE2Voter::voteEdges(
-  const std::vector<EdgePoint> & edges,
-  cv::Mat * hough_debug_slice)
+  const std::vector<EdgePoint> & edges, cv::Mat * hough_debug_slice)
 {
   if (edges.empty() || template_curve_ == nullptr) {
     return {};
@@ -311,7 +302,8 @@ std::vector<LaneHypothesis> CoarseSE2Voter::voteEdges(
       for (int ix = 0; ix < coarse.vx_bins; ++ix) {
         double sum = 0.0;
         for (int io = 0; io < coarse.omega_bins; ++io) {
-          sum += coarse_accum[static_cast<size_t>(flatBinIndex(ix, iy, io, coarse.vx_bins, coarse.vy_bins))];
+          sum += coarse_accum[static_cast<size_t>(
+            flatBinIndex(ix, iy, io, coarse.vx_bins, coarse.vy_bins))];
         }
         hough_debug_slice->at<float>(iy, ix) = static_cast<float>(sum);
       }
@@ -330,9 +322,7 @@ std::vector<LaneHypothesis> CoarseSE2Voter::voteEdges(
     seed.vote_count = peak.votes;
     seed.score = peak.votes;
 
-    LaneHypothesis hyp = params_.use_ceres_fitter ?
-      ceres_fitter_.fitEdges(seed, edges) :
-      seed;
+    LaneHypothesis hyp = params_.use_ceres_fitter ? ceres_fitter_.fitEdges(seed, edges) : seed;
     hyp.vote_count = peak.votes;
     if (hyp.score <= 0.0) {
       hyp.score = peak.votes;
@@ -356,20 +346,19 @@ std::vector<LaneHypothesis> CoarseSE2Voter::voteEdges(
 }
 
 std::vector<LaneHypothesis> CoarseSE2Voter::voteLines(
-  const std::vector<LineSegment> & lines,
-  cv::Mat * hough_debug_slice)
+  const std::vector<LineSegment> & lines, cv::Mat * hough_debug_slice)
 {
   std::vector<EdgePoint> pseudo;
   pseudo.reserve(lines.size() * 3);
   for (const auto & line : lines) {
     const auto add = [&](double x, double y) {
-        EdgePoint e;
-        e.x = x;
-        e.y = y;
-        e.magnitude = line.length;
-        e.orientation = line.angle;
-        pseudo.push_back(e);
-      };
+      EdgePoint e;
+      e.x = x;
+      e.y = y;
+      e.magnitude = line.length;
+      e.orientation = line.angle;
+      pseudo.push_back(e);
+    };
     add(line.x1, line.y1);
     add(line.mx, line.my);
     add(line.x2, line.y2);

@@ -1,12 +1,12 @@
 #pragma once
 
-#include <cmath>
-#include <cstdint>
-#include <vector>
-
 #include <Eigen/Core>
 #include <opencv2/core.hpp>
 #include <sophus/se2.hpp>
+
+#include <cmath>
+#include <cstdint>
+#include <vector>
 
 namespace lie_lane_detection
 {
@@ -14,22 +14,9 @@ namespace lie_lane_detection
 using Vec2 = Eigen::Vector2d;
 using XiVector = Eigen::Matrix<double, 5, 1>;
 
-enum class LaneRole
-{
-  UNKNOWN,
-  LEFT_ADJACENT,
-  LEFT_EGO,
-  CENTER,
-  RIGHT_EGO,
-  RIGHT_ADJACENT
-};
+enum class LaneRole { UNKNOWN, LEFT_ADJACENT, LEFT_EGO, CENTER, RIGHT_EGO, RIGHT_ADJACENT };
 
-enum class MergeTopologyType
-{
-  PARALLEL,
-  MERGE,
-  DIVERGE
-};
+enum class MergeTopologyType { PARALLEL, MERGE, DIVERGE };
 
 struct EdgePoint
 {
@@ -283,7 +270,8 @@ inline Sophus::SE2d xiToSE2(const XiVector & xi)
   return Sophus::SE2d::exp(se2_tangent);
 }
 
-inline double hypothesisDistance(const XiVector & a, const XiVector & b, double lambda_k = 1.0, double lambda_s = 1.0)
+inline double hypothesisDistance(
+  const XiVector & a, const XiVector & b, double lambda_k = 1.0, double lambda_s = 1.0)
 {
   const Sophus::SE2d ga = xiToSE2(a);
   const Sophus::SE2d gb = xiToSE2(b);

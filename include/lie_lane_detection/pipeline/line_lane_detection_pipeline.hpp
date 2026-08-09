@@ -1,11 +1,12 @@
 #pragma once
 
-#include <string>
+#include "lie_lane_detection/core/types.hpp"
 
-#include <sensor_msgs/msg/camera_info.hpp>
 #include <opencv2/core.hpp>
 
-#include "lie_lane_detection/core/types.hpp"
+#include <sensor_msgs/msg/camera_info.hpp>
+
+#include <string>
 
 namespace lie_lane_detection
 {
@@ -31,8 +32,7 @@ public:
   void updateParams(const PipelineParams & params);
 
   LineLaneDetectionResult detect(
-    const cv::Mat & image_bgr,
-    const sensor_msgs::msg::CameraInfo * camera_info = nullptr);
+    const cv::Mat & image_bgr, const sensor_msgs::msg::CameraInfo * camera_info = nullptr);
 
 private:
   PipelineParams params_;

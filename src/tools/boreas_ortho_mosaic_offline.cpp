@@ -4,13 +4,10 @@
 //   boreas_ortho_mosaic_offline --rosbag /path/to/boreas_bag
 //     --calib-dir /path/to/boreas/calib --output /tmp/boreas_ortho.png
 
-#include <algorithm>
-#include <cmath>
-#include <filesystem>
-#include <fstream>
-#include <iostream>
-#include <memory>
-#include <string>
+#include "lie_lane_detection/mosaic/odom_bev_mosaic_accumulator.hpp"
+#include "lie_lane_detection/mosaic/pose_buffer.hpp"
+#include "lie_lane_detection/preprocessing/boreas_calib.hpp"
+#include "lie_lane_detection/preprocessing/ipm_transformer.hpp"
 
 #include <cv_bridge/cv_bridge.hpp>
 #include <opencv2/imgcodecs.hpp>
@@ -19,13 +16,17 @@
 #include <rosbag2_cpp/reader.hpp>
 #include <rosbag2_storage/storage_filter.hpp>
 #include <rosbag2_storage/storage_options.hpp>
+
 #include <sensor_msgs/msg/compressed_image.hpp>
 #include <tf2_msgs/msg/tf_message.hpp>
 
-#include "lie_lane_detection/mosaic/odom_bev_mosaic_accumulator.hpp"
-#include "lie_lane_detection/mosaic/pose_buffer.hpp"
-#include "lie_lane_detection/preprocessing/boreas_calib.hpp"
-#include "lie_lane_detection/preprocessing/ipm_transformer.hpp"
+#include <algorithm>
+#include <cmath>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <memory>
+#include <string>
 
 namespace fs = std::filesystem;
 namespace lie = lie_lane_detection;
@@ -81,19 +82,19 @@ bool parseArgs(int argc, char ** argv, CliOptions & opts)
     } else if (arg == "--pose-forward-offset-m" && i + 1 < argc) {
       opts.pose_forward_offset_m = std::stod(argv[++i]);
     } else if (arg == "--help" || arg == "-h") {
-      std::cout <<
-        "Usage: boreas_ortho_mosaic_offline --rosbag PATH --calib-dir DIR [options]\n"
-        "  --output PATH              Output PNG (default /tmp/boreas_ortho.png)\n"
-        "  --meta PATH                Optional YAML metadata sidecar\n"
-        "  --image-topic TOPIC        Default /boreas/image/compressed\n"
-        "  --parent-frame FRAME       Default map\n"
-        "  --child-frame FRAME        Default base_link (composed via /tf + /tf_static)\n"
-        "  --decimate N               Process every Nth image (default 5)\n"
-        "  --max-frames N             Cap processed frames (default 500)\n"
-        "  --max-pose-delta-ms MS     Max TF lookup gap (default 50)\n"
-        "  --pose-yaw-offset-deg D    Body-frame yaw tweak for alignment\n"
-        "  --pose-lateral-offset-m M  Body-frame lateral tweak\n"
-        "  --pose-forward-offset-m M  Body-frame forward tweak\n";
+      std::cout
+        << "Usage: boreas_ortho_mosaic_offline --rosbag PATH --calib-dir DIR [options]\n"
+           "  --output PATH              Output PNG (default /tmp/boreas_ortho.png)\n"
+           "  --meta PATH                Optional YAML metadata sidecar\n"
+           "  --image-topic TOPIC        Default /boreas/image/compressed\n"
+           "  --parent-frame FRAME       Default map\n"
+           "  --child-frame FRAME        Default base_link (composed via /tf + /tf_static)\n"
+           "  --decimate N               Process every Nth image (default 5)\n"
+           "  --max-frames N             Cap processed frames (default 500)\n"
+           "  --max-pose-delta-ms MS     Max TF lookup gap (default 50)\n"
+           "  --pose-yaw-offset-deg D    Body-frame yaw tweak for alignment\n"
+           "  --pose-lateral-offset-m M  Body-frame lateral tweak\n"
+           "  --pose-forward-offset-m M  Body-frame forward tweak\n";
       return false;
     }
   }
@@ -215,8 +216,7 @@ int main(int argc, char ** argv)
   mosaic_params.pose_forward_offset_m = opts.pose_forward_offset_m;
   lie::OdomBevMosaicAccumulator accumulator(mosaic_params);
 
-  const int64_t max_pose_delta_ns =
-    static_cast<int64_t>(opts.max_pose_delta_ms * 1e6);
+  const int64_t max_pose_delta_ns = static_cast<int64_t>(opts.max_pose_delta_ms * 1e6);
 
   rosbag2_storage::StorageOptions storage_options;
   storage_options.uri = opts.rosbag.string();
@@ -275,8 +275,8 @@ int main(int argc, char ** argv)
     }
 
     const int64_t stamp_ns = stampToNs(image_msg.header.stamp);
-    const auto pose = resolver.lookup(
-      opts.parent_frame, opts.child_frame, stamp_ns, max_pose_delta_ns);
+    const auto pose =
+      resolver.lookup(opts.parent_frame, opts.child_frame, stamp_ns, max_pose_delta_ns);
     if (!pose.has_value()) {
       ++skipped_no_pose;
       continue;

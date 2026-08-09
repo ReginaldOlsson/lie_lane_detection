@@ -1,9 +1,9 @@
 #pragma once
 
+#include "lie_lane_detection/core/types.hpp"
+
 #include <cstddef>
 #include <vector>
-
-#include "lie_lane_detection/core/types.hpp"
 
 namespace lie_lane_detection
 {
@@ -17,7 +17,7 @@ public:
   /// Return indices of lines within radius of (qx, qy).
   std::vector<size_t> queryRadius(double qx, double qy, double radius) const;
 
-  const std::vector<LineSegment> & lines() const {return lines_;}
+  const std::vector<LineSegment> & lines() const { return lines_; }
 
 private:
   struct Node
@@ -29,7 +29,8 @@ private:
   };
 
   int buildRecursive(int begin, int end, int depth);
-  void queryRecursive(int node, double qx, double qy, double radius_sq, std::vector<size_t> & out) const;
+  void queryRecursive(
+    int node, double qx, double qy, double radius_sq, std::vector<size_t> & out) const;
 
   std::vector<LineSegment> lines_;
   std::vector<size_t> indices_;

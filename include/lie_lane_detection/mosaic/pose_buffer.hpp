@@ -1,14 +1,14 @@
 #pragma once
 
+#include "lie_lane_detection/mosaic/pose2d.hpp"
+
+#include <geometry_msgs/msg/transform_stamped.hpp>
+
 #include <cstdint>
 #include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
-
-#include <geometry_msgs/msg/transform_stamped.hpp>
-
-#include "lie_lane_detection/mosaic/pose2d.hpp"
 
 namespace lie_lane_detection
 {
@@ -30,8 +30,8 @@ public:
   /// Returns interpolated pose at stamp_ns, or nullopt if outside range or gap too large.
   std::optional<Pose2d> lookup(int64_t stamp_ns, int64_t max_delta_ns) const;
 
-  bool empty() const {return samples_.empty();}
-  size_t size() const {return samples_.size();}
+  bool empty() const { return samples_.empty(); }
+  size_t size() const { return samples_.size(); }
 
 private:
   std::vector<PoseSample> samples_;
@@ -48,9 +48,7 @@ public:
 
   /// Lookup planar pose of child in parent frame at stamp_ns.
   std::optional<Pose2d> lookup(
-    const std::string & parent_frame,
-    const std::string & child_frame,
-    int64_t stamp_ns,
+    const std::string & parent_frame, const std::string & child_frame, int64_t stamp_ns,
     int64_t max_delta_ns) const;
 
 private:

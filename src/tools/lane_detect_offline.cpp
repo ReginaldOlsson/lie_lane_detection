@@ -2,21 +2,21 @@
 // Usage:
 //   lane_detect_offline --image /path/to/bev.png --output /path/to/out_dir [--skip-ipm]
 
+#include "lie_lane_detection/geometry/template_curve.hpp"
+#include "lie_lane_detection/pipeline/lane_detection_runner.hpp"
+#include "lie_lane_detection/preprocessing/auto_frontal_ipm.hpp"
+#include "lie_lane_detection/preprocessing/boreas_calib.hpp"
+#include "lie_lane_detection/preprocessing/ipm_transformer.hpp"
+#include "offline_display.hpp"
+
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
+
 #include <array>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <string>
-
-#include <opencv2/highgui.hpp>
-#include <opencv2/imgproc.hpp>
-
-#include "lie_lane_detection/pipeline/lane_detection_runner.hpp"
-#include "lie_lane_detection/preprocessing/auto_frontal_ipm.hpp"
-#include "lie_lane_detection/preprocessing/boreas_calib.hpp"
-#include "lie_lane_detection/preprocessing/ipm_transformer.hpp"
-#include "lie_lane_detection/geometry/template_curve.hpp"
-#include "offline_display.hpp"
 
 namespace fs = std::filesystem;
 
@@ -56,18 +56,17 @@ int main(int argc, char ** argv)
     } else if (arg == "--wait-ms" && i + 1 < argc) {
       wait_ms = std::stoi(argv[++i]);
     } else if (arg == "--help" || arg == "-h") {
-      std::cout <<
-        "Usage: lane_detect_offline [--synthetic | --image PATH] [--output DIR]\n"
-        "       [--perspective | --auto-ipm | --boreas-calib DIR | --frontal]\n"
-        "  --synthetic     Generate synthetic 3-lane BEV and run detection\n"
-        "  --image PATH    Load image (BEV, or forward camera with IPM flags)\n"
-        "  --perspective   Manual highway IPM trapezoid\n"
-        "  --auto-ipm      Auto VP + homography from image (recommended for frontal)\n"
-        "  --boreas-calib  Boreas calib/ with P_camera + T_camera_lidar\n"
-        "  --frontal       Detect on raw forward camera (no IPM)\n"
-        "  --show          cv::imshow windows (input/BEV/edges/overlay)\n"
-        "  --wait-ms N     waitKey delay (0=until key, default 0)\n"
-        "  --output DIR    Save overlay, edges, hough, report.txt\n";
+      std::cout << "Usage: lane_detect_offline [--synthetic | --image PATH] [--output DIR]\n"
+                   "       [--perspective | --auto-ipm | --boreas-calib DIR | --frontal]\n"
+                   "  --synthetic     Generate synthetic 3-lane BEV and run detection\n"
+                   "  --image PATH    Load image (BEV, or forward camera with IPM flags)\n"
+                   "  --perspective   Manual highway IPM trapezoid\n"
+                   "  --auto-ipm      Auto VP + homography from image (recommended for frontal)\n"
+                   "  --boreas-calib  Boreas calib/ with P_camera + T_camera_lidar\n"
+                   "  --frontal       Detect on raw forward camera (no IPM)\n"
+                   "  --show          cv::imshow windows (input/BEV/edges/overlay)\n"
+                   "  --wait-ms N     waitKey delay (0=until key, default 0)\n"
+                   "  --output DIR    Save overlay, edges, hough, report.txt\n";
       return 0;
     }
   }
@@ -108,8 +107,8 @@ int main(int argc, char ** argv)
       xi[0] = vx;
       const auto poly = curve.samplePolyline(xi, 80);
       for (size_t i = 1; i < poly.size(); ++i) {
-        cv::line(bev,
-          cv::Point(static_cast<int>(poly[i - 1].x()), static_cast<int>(poly[i - 1].y())),
+        cv::line(
+          bev, cv::Point(static_cast<int>(poly[i - 1].x()), static_cast<int>(poly[i - 1].y())),
           cv::Point(static_cast<int>(poly[i].x()), static_cast<int>(poly[i].y())),
           cv::Scalar(220, 220, 220), 3);
       }
@@ -156,7 +155,8 @@ int main(int argc, char ** argv)
         return 1;
       }
       cv::imwrite((output_dir / "ipm_bev.png").string(), warped);
-      std::cout << "Boreas manual IPM src trapezoid BEV: " << warped.cols << "x" << warped.rows << "\n";
+      std::cout << "Boreas manual IPM src trapezoid BEV: " << warped.cols << "x" << warped.rows
+                << "\n";
       ipm_roi_view = input_view.clone();
       lie_lane_detection::drawIpmMetricDstOnImage(ipm_roi_view, H, params);
       lie_lane_detection::drawIpmSrcRoi(ipm_roi_view, params, cv::Scalar(0, 255, 255), 2);
@@ -205,28 +205,24 @@ int main(int argc, char ** argv)
   report << "Merge events: " << result.merges.size() << "\n\n";
 
   for (const auto & lane : result.lanes) {
-    report << "Lane " << lane.lane_id
-           << "  xi=(vx=" << lane.xi[0] << ", vy=" << lane.xi[1]
-           << ", w=" << lane.xi[2] << ", k=" << lane.xi[3]
-           << ", s=" << lane.xi[4] << ")"
-           << "  score=" << lane.score
-           << "  inliers=" << lane.inlier_ratio << "\n";
+    report << "Lane " << lane.lane_id << "  xi=(vx=" << lane.xi[0] << ", vy=" << lane.xi[1]
+           << ", w=" << lane.xi[2] << ", k=" << lane.xi[3] << ", s=" << lane.xi[4] << ")"
+           << "  score=" << lane.score << "  inliers=" << lane.inlier_ratio << "\n";
   }
   for (const auto & m : result.merges) {
     report << "Merge: lanes " << m.lane_a_id << "+" << m.lane_b_id
-           << " type=" << static_cast<int>(m.type)
-           << " pt=(" << m.merge_point.x() << "," << m.merge_point.y() << ")\n";
+           << " type=" << static_cast<int>(m.type) << " pt=(" << m.merge_point.x() << ","
+           << m.merge_point.y() << ")\n";
   }
   report.close();
 
   std::cout << "\nResults saved to: " << output_dir << "\n";
   std::cout << "  edges.png, hough_slice.png, overlay.png, report.txt\n";
-  std::cout << "Detected " << result.lanes.size() << " lane(s), "
-            << result.edge_point_count << " edge points in "
-            << result.elapsed_ms << " ms\n";
+  std::cout << "Detected " << result.lanes.size() << " lane(s), " << result.edge_point_count
+            << " edge points in " << result.elapsed_ms << " ms\n";
   for (const auto & lane : result.lanes) {
-    std::cout << "  Lane " << lane.lane_id << ": vx=" << lane.xi[0]
-              << " kappa=" << lane.xi[3] << " inliers=" << lane.inlier_ratio << "\n";
+    std::cout << "  Lane " << lane.lane_id << ": vx=" << lane.xi[0] << " kappa=" << lane.xi[3]
+              << " inliers=" << lane.inlier_ratio << "\n";
   }
 
   if (show_windows) {

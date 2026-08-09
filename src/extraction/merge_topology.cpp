@@ -13,9 +13,7 @@ MergeTopology::MergeTopology(const PipelineParams & params, TemplateCurve * temp
 }
 
 MergeTopologyType MergeTopology::classifyPair(
-  const LaneHypothesis & a,
-  const LaneHypothesis & b,
-  Vec2 * merge_point) const
+  const LaneHypothesis & a, const LaneHypothesis & b, Vec2 * merge_point) const
 {
   constexpr int kSamples = 20;
   std::vector<double> deltas;
